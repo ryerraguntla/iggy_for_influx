@@ -346,6 +346,8 @@ pub enum IggyError {
     InvalidKeyValueLength = 4028,
     #[error("Command length error: {0}")]
     CommandLengthError(String) = 4029,
+    #[error("Incorrect Segments Count size: {0}")]
+    InvalidSegmentsCount(u32) = 4030,
     #[error("Cannot sed messages due to client disconnection")]
     CannotSendMessagesDueToClientDisconnection = 4050,
     #[error("Invalid offset: {0}")]

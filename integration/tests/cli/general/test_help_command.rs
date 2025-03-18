@@ -36,6 +36,7 @@ Commands:
   stream           stream operations [aliases: s]
   topic            topic operations [aliases: t]
   partition        partition operations [aliases: p]
+  segment          segments operations [aliases: seg]
   ping             ping iggy server
   me               get current client info
   stats            get iggy server statistics
