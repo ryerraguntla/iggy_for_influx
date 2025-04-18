@@ -16,9 +16,8 @@
  * under the License.
  */
 
-use iggy::utils::byte_size::IggyByteSize;
-use iggy::utils::duration::IggyDuration;
-
+use super::system::MemoryPoolConfig;
+use super::tcp::TcpSocketConfig;
 use crate::configs::http::{
     HttpConfig, HttpCorsConfig, HttpJwtConfig, HttpMetricsConfig, HttpTlsConfig,
 };
@@ -30,15 +29,15 @@ use crate::configs::server::{
     TelemetryTracesConfig,
 };
 use crate::configs::system::{
-    BackupConfig, CacheConfig, CompatibilityConfig, CompressionConfig, EncryptionConfig,
-    LoggingConfig, MessageDeduplicationConfig, PartitionConfig, RecoveryConfig, RuntimeConfig,
-    SegmentConfig, StateConfig, StreamConfig, SystemConfig, TopicConfig,
+    BackupConfig, CompatibilityConfig, CompressionConfig, EncryptionConfig, LoggingConfig,
+    MessageDeduplicationConfig, PartitionConfig, RecoveryConfig, RuntimeConfig, SegmentConfig,
+    StateConfig, StreamConfig, SystemConfig, TopicConfig,
 };
 use crate::configs::tcp::{TcpConfig, TcpTlsConfig};
+use iggy::utils::byte_size::IggyByteSize;
+use iggy::utils::duration::IggyDuration;
 use std::sync::Arc;
 use std::time::Duration;
-
-use super::tcp::TcpSocketConfig;
 
 static_toml::static_toml! {
     // static_toml crate always starts from CARGO_MANIFEST_DIR (in this case iggy-server root directory)
@@ -314,7 +313,6 @@ impl Default for SystemConfig {
             backup: BackupConfig::default(),
             runtime: RuntimeConfig::default(),
             logging: LoggingConfig::default(),
-            cache: CacheConfig::default(),
             stream: StreamConfig::default(),
             encryption: EncryptionConfig::default(),
             topic: TopicConfig::default(),
@@ -324,6 +322,7 @@ impl Default for SystemConfig {
             compression: CompressionConfig::default(),
             message_deduplication: MessageDeduplicationConfig::default(),
             recovery: RecoveryConfig::default(),
+            memory_pool: MemoryPoolConfig::default(),
         }
     }
 }
@@ -399,15 +398,6 @@ impl Default for LoggingConfig {
     }
 }
 
-impl Default for CacheConfig {
-    fn default() -> CacheConfig {
-        CacheConfig {
-            enabled: SERVER_CONFIG.system.cache.enabled,
-            size: SERVER_CONFIG.system.cache.size.parse().unwrap(),
-        }
-    }
-}
-
 impl Default for EncryptionConfig {
     fn default() -> EncryptionConfig {
         EncryptionConfig {
@@ -439,6 +429,12 @@ impl Default for PartitionConfig {
     fn default() -> PartitionConfig {
         PartitionConfig {
             path: SERVER_CONFIG.system.partition.path.parse().unwrap(),
+            size_of_messages_required_to_save: SERVER_CONFIG
+                .system
+                .partition
+                .size_of_messages_required_to_save
+                .parse()
+                .unwrap(),
             messages_required_to_save: SERVER_CONFIG.system.partition.messages_required_to_save
                 as u32,
             enforce_fsync: SERVER_CONFIG.system.partition.enforce_fsync,
@@ -451,7 +447,7 @@ impl Default for SegmentConfig {
     fn default() -> SegmentConfig {
         SegmentConfig {
             size: SERVER_CONFIG.system.segment.size.parse().unwrap(),
-            cache_indexes: SERVER_CONFIG.system.segment.cache_indexes,
+            cache_indexes: SERVER_CONFIG.system.segment.cache_indexes.parse().unwrap(),
             message_expiry: SERVER_CONFIG.system.segment.message_expiry.parse().unwrap(),
             archive_expired: SERVER_CONFIG.system.segment.archive_expired,
             server_confirmation: SERVER_CONFIG
@@ -494,6 +490,16 @@ impl Default for RecoveryConfig {
     fn default() -> RecoveryConfig {
         RecoveryConfig {
             recreate_missing_state: SERVER_CONFIG.system.recovery.recreate_missing_state,
+        }
+    }
+}
+
+impl Default for MemoryPoolConfig {
+    fn default() -> MemoryPoolConfig {
+        MemoryPoolConfig {
+            enabled: SERVER_CONFIG.system.memory_pool.enabled,
+            size: SERVER_CONFIG.system.memory_pool.size.parse().unwrap(),
+            bucket_capacity: SERVER_CONFIG.system.memory_pool.bucket_capacity as u32,
         }
     }
 }

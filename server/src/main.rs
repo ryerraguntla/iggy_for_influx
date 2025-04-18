@@ -27,7 +27,7 @@ use server::channels::commands::maintain_messages::MaintainMessagesExecutor;
 use server::channels::commands::print_sysinfo::SysInfoPrintExecutor;
 use server::channels::commands::save_messages::SaveMessagesExecutor;
 use server::channels::commands::verify_heartbeats::VerifyHeartbeatsExecutor;
-use server::channels::handler::ServerCommandHandler;
+use server::channels::handler::BackgroundServerCommandHandler;
 use server::configs::config_provider;
 use server::configs::server::ServerConfig;
 use server::http::http_server;
@@ -38,6 +38,7 @@ use server::log::tokio_console::Logging;
 use server::quic::quic_server;
 use server::server_error::ServerError;
 use server::streaming::systems::system::{SharedSystem, System};
+use server::streaming::utils::MemoryPool;
 use server::tcp::tcp_server;
 use tokio::time::Instant;
 use tracing::{info, instrument};
@@ -94,6 +95,8 @@ async fn main() -> Result<(), ServerError> {
     #[cfg(not(feature = "disable-mimalloc"))]
     info!("Using mimalloc allocator");
 
+    MemoryPool::init_pool(config.system.clone());
+
     let system = SharedSystem::new(System::new(
         config.system.clone(),
         config.data_maintenance.clone(),
@@ -106,7 +109,7 @@ async fn main() -> Result<(), ServerError> {
     system.write().await.get_stats().await?;
     system.write().await.init().await?;
 
-    let _command_handler = ServerCommandHandler::new(system.clone(), &config)
+    let _command_handler = BackgroundServerCommandHandler::new(system.clone(), &config)
         .install_handler(SaveMessagesExecutor)
         .install_handler(MaintainMessagesExecutor)
         .install_handler(ArchiveStateExecutor)

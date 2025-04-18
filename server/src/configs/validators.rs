@@ -22,23 +22,28 @@ use super::server::{
     ArchiverConfig, DataMaintenanceConfig, MessageSaverConfig, MessagesMaintenanceConfig,
     StateMaintenanceConfig, TelemetryConfig,
 };
-use super::system::CompressionConfig;
+use super::system::{CompressionConfig, MemoryPoolConfig, PartitionConfig};
 use crate::archiver::ArchiverKindType;
 use crate::configs::server::{PersonalAccessTokenConfig, ServerConfig};
-use crate::configs::system::{CacheConfig, SegmentConfig};
+use crate::configs::system::SegmentConfig;
 use crate::configs::COMPONENT;
 use crate::server_error::ConfigError;
 use crate::streaming::segments::*;
 use error_set::ErrContext;
 use iggy::compression::compression_algorithm::CompressionAlgorithm;
-use iggy::utils::byte_size::IggyByteSize;
 use iggy::utils::expiry::IggyExpiry;
 use iggy::utils::topic_size::MaxTopicSize;
 use iggy::validatable::Validatable;
-use sysinfo::{Pid, ProcessesToUpdate, System};
+use tracing::error;
 
 impl Validatable<ConfigError> for ServerConfig {
     fn validate(&self) -> Result<(), ConfigError> {
+        self.system
+            .memory_pool
+            .validate()
+            .with_error_context(|error| {
+                format!("{COMPONENT} (error: {error}) - failed to validate memory pool config")
+            })?;
         self.data_maintenance
             .validate()
             .with_error_context(|error| {
@@ -51,9 +56,6 @@ impl Validatable<ConfigError> for ServerConfig {
             })?;
         self.system.segment.validate().with_error_context(|error| {
             format!("{COMPONENT} (error: {error}) - failed to validate segment config")
-        })?;
-        self.system.cache.validate().with_error_context(|error| {
-            format!("{COMPONENT} (error: {error}) - failed to validate cache config")
         })?;
         self.system
             .compression
@@ -126,43 +128,39 @@ impl Validatable<ConfigError> for TelemetryConfig {
     }
 }
 
-impl Validatable<ConfigError> for CacheConfig {
+impl Validatable<ConfigError> for PartitionConfig {
     fn validate(&self) -> Result<(), ConfigError> {
-        if !self.enabled {
-            println!("Cache configuration -> cache is disabled.");
-            return Ok(());
-        }
-
-        let limit_bytes = self.size.clone().into();
-        let mut sys = System::new_all();
-        sys.refresh_all();
-        sys.refresh_processes(
-            ProcessesToUpdate::Some(&[Pid::from_u32(std::process::id())]),
-            true,
-        );
-        let total_memory = sys.total_memory();
-        let free_memory = sys.free_memory();
-        let cache_percentage = (limit_bytes.as_bytes_u64() as f64 / total_memory as f64) * 100.0;
-
-        let pretty_cache_limit = limit_bytes.as_human_string();
-        let pretty_total_memory = IggyByteSize::from(total_memory).as_human_string();
-        let pretty_free_memory = IggyByteSize::from(free_memory).as_human_string();
-
-        if limit_bytes > total_memory {
-            return Err(ConfigError::CacheConfigValidationFailure);
-        }
-
-        if limit_bytes > (total_memory as f64 * 0.75) as u64 {
-            println!(
-                "Cache configuration -> cache size exceeds 75% of total memory. Set to: {} ({:.2}% of total memory: {}).",
-                pretty_cache_limit, cache_percentage, pretty_total_memory
+        if self.messages_required_to_save < 32 {
+            eprintln!(
+                "Configured system.partition.messages_required_to_save {} is less than minimum {}",
+                self.messages_required_to_save, 32
             );
+            return Err(ConfigError::InvalidConfiguration);
         }
 
-        println!(
-            "Cache configuration -> cache size set to {} ({:.2}% of total memory: {}, free memory: {}).",
-            pretty_cache_limit, cache_percentage, pretty_total_memory, pretty_free_memory
-        );
+        if self.messages_required_to_save % 32 != 0 {
+            eprintln!(
+                "Configured system.partition.messages_required_to_save {} is not a multiple of 32",
+                self.messages_required_to_save
+            );
+            return Err(ConfigError::InvalidConfiguration);
+        }
+
+        if self.size_of_messages_required_to_save < 512 {
+            eprintln!(
+                "Configured system.partition.size_of_messages_required_to_save {} is less than minimum {}",
+                self.size_of_messages_required_to_save, 512
+            );
+            return Err(ConfigError::InvalidConfiguration);
+        }
+
+        if self.size_of_messages_required_to_save.as_bytes_u64() % 512 != 0 {
+            eprintln!(
+                "Configured system.partition.size_of_messages_required_to_save {} is not a multiple of 512 B",
+                self.size_of_messages_required_to_save
+            );
+            return Err(ConfigError::InvalidConfiguration);
+        }
 
         Ok(())
     }
@@ -171,6 +169,19 @@ impl Validatable<ConfigError> for CacheConfig {
 impl Validatable<ConfigError> for SegmentConfig {
     fn validate(&self) -> Result<(), ConfigError> {
         if self.size > SEGMENT_MAX_SIZE_BYTES {
+            eprintln!(
+                "Configured system.segment.size {} B is greater than maximum {} B",
+                self.size.as_bytes_u64(),
+                SEGMENT_MAX_SIZE_BYTES
+            );
+            return Err(ConfigError::InvalidConfiguration);
+        }
+
+        if self.size.as_bytes_u64() % 512 != 0 {
+            eprintln!(
+                "Configured system.segment.size {} B is not a multiple of 512 B",
+                self.size.as_bytes_u64()
+            );
             return Err(ConfigError::InvalidConfiguration);
         }
 
@@ -281,6 +292,59 @@ impl Validatable<ConfigError> for PersonalAccessTokenConfig {
         }
 
         if self.cleaner.enabled && self.cleaner.interval.is_zero() {
+            return Err(ConfigError::InvalidConfiguration);
+        }
+
+        Ok(())
+    }
+}
+
+impl Validatable<ConfigError> for MemoryPoolConfig {
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.enabled && self.size == 0 {
+            error!(
+                "Configured system.memory_pool.enabled is true and system.memory_pool.size is 0"
+            );
+            return Err(ConfigError::InvalidConfiguration);
+        }
+
+        const MIN_POOL_SIZE: u64 = 512 * 1024 * 1024; // 512 MiB
+        const MIN_BUCKET_CAPACITY: u32 = 128;
+        const DEFAULT_PAGE_SIZE: u64 = 4096;
+
+        if self.enabled && self.size < MIN_POOL_SIZE {
+            error!(
+                "Configured system.memory_pool.size {} B ({} MiB) is less than minimum {} B, ({} MiB)",
+                self.size.as_bytes_u64(),
+                self.size.as_bytes_u64() / (1024 * 1024),
+                MIN_POOL_SIZE,
+                MIN_POOL_SIZE / (1024 * 1024),
+            );
+            return Err(ConfigError::InvalidConfiguration);
+        }
+
+        if self.enabled && self.size.as_bytes_u64() % DEFAULT_PAGE_SIZE != 0 {
+            error!(
+                "Configured system.memory_pool.size {} B is not a multiple of default page size {} B",
+                self.size.as_bytes_u64(),
+                DEFAULT_PAGE_SIZE
+            );
+            return Err(ConfigError::InvalidConfiguration);
+        }
+
+        if self.enabled && self.bucket_capacity < MIN_BUCKET_CAPACITY {
+            error!(
+                "Configured system.memory_pool.buffers {} is less than minimum {}",
+                self.bucket_capacity, MIN_BUCKET_CAPACITY
+            );
+            return Err(ConfigError::InvalidConfiguration);
+        }
+
+        if self.enabled && !self.bucket_capacity.is_power_of_two() {
+            error!(
+                "Configured system.memory_pool.buffers {} is not a power of 2",
+                self.bucket_capacity
+            );
             return Err(ConfigError::InvalidConfiguration);
         }
 
