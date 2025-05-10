@@ -81,7 +81,7 @@ jobs:
         #   WIP
 
   ci-check-licenses:
-    name: license headers
+    name: Check license headers
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,3 +91,14 @@ jobs:
 
       - name: Check license headers
         run: docker run --rm -v ${{ github.workspace }}:/src -w /src ghcr.io/google/addlicense:latest -check -f ASF_LICENSE.txt .
+
+  ci-check-licenses-list:
+    name: Check licenses list
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: scripts/licenses-list.sh --check
