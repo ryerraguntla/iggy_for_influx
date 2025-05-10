@@ -20,7 +20,7 @@ use crate::analytics::time_series::{
     calculator::TimeSeriesCalculator,
     processors::{moving_average::MovingAverageProcessor, TimeSeriesProcessor},
 };
-use iggy_bench_report::{
+use bench_report::{
     actor_kind::ActorKind, group_metrics::BenchmarkGroupMetrics,
     group_metrics_kind::GroupMetricsKind, group_metrics_summary::BenchmarkGroupMetricsSummary,
     individual_metrics::BenchmarkIndividualMetrics, utils::*,

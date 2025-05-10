@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bench_report::numeric_parameter::BenchmarkNumericParameter;
 use bytes::Bytes;
 use iggy::prelude::*;
-use iggy_bench_report::numeric_parameter::BenchmarkNumericParameter;
 use rand::{distr::Alphanumeric, Rng};
 
 pub struct BenchmarkMessagesBatch {

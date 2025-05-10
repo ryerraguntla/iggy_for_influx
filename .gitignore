@@ -28,3 +28,4 @@ foreign/node/.npm
 *.test
 *.out
 go.work
+core/bench/dashboard/frontend/dist

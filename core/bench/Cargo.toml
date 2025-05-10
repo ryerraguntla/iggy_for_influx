@@ -25,6 +25,7 @@ license = "Apache-2.0"
 
 [dependencies]
 async-trait = { workspace = true }
+bench-report = { workspace = true }
 bytes = { workspace = true }
 charming = { workspace = true }
 chrono = { workspace = true }
@@ -34,7 +35,6 @@ governor = "0.10.0"
 hostname = "0.4.1"
 human-repr = { workspace = true }
 iggy = { workspace = true }
-iggy-bench-report = { workspace = true }
 integration = { workspace = true }
 nonzero_lit = { workspace = true }
 rand = { workspace = true }

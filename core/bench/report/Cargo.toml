@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-name = "iggy-bench-report"
+name = "bench-report"
 version = "0.2.2"
 edition = "2021"
 description = "Benchmark report and chart generation library for iggy-bench binary and iggy-benchmarks-dashboard web app"

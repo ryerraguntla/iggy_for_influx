@@ -19,10 +19,8 @@
 use super::benchmark::Benchmarkable;
 use crate::{args::common::IggyBenchArgs, benchmarks::common::*};
 use async_trait::async_trait;
+use bench_report::{benchmark_kind::BenchmarkKind, individual_metrics::BenchmarkIndividualMetrics};
 use iggy::prelude::*;
-use iggy_bench_report::{
-    benchmark_kind::BenchmarkKind, individual_metrics::BenchmarkIndividualMetrics,
-};
 use integration::test_server::ClientFactory;
 use std::sync::Arc;
 use tokio::task::JoinSet;

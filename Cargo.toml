@@ -20,10 +20,13 @@ lto = true
 codegen-units = 1
 
 [workspace]
-resolver = "2"
 members = [
     "core/bench",
+    "core/bench/dashboard/frontend",
+    "core/bench/dashboard/server",
+    "core/bench/dashboard/shared",
     "core/bench/report",
+    "core/bench/runner",
     "core/binary_protocol",
     "core/cli",
     "core/common",
@@ -33,6 +36,7 @@ members = [
     "core/server",
     "core/tools",
 ]
+resolver = "2"
 
 [workspace.metadata.cargo-machete]
 ignored = ["openssl"]
@@ -152,4 +156,8 @@ iggy_binary_protocol = { path = "core/binary_protocol", version = "0.7.0" }
 iggy = { path = "core/sdk", version = "0.7.0" }
 server = { path = "core/server" }
 integration = { path = "core/integration" }
-iggy-bench-report = { path = "core/bench/report" }
+bench-report = { path = "core/bench/report" }
+bench-runner = { path = "core/bench/runner" }
+bench-dashboard-frontend = { path = "core/bench/dashboard/frontend" }
+bench-dashboard-server = { path = "core/bench/dashboard/server" }
+bench-dashboard-shared = { path = "core/bench/dashboard/shared" }

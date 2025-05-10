@@ -19,8 +19,8 @@
 mod latency;
 mod throughput;
 
+use bench_report::time_series::TimeSeries;
 use iggy::prelude::IggyDuration;
-use iggy_bench_report::time_series::TimeSeries;
 pub use latency::LatencyTimeSeriesCalculator;
 pub use throughput::{
     MBThroughputCalculator, MessageThroughputCalculator, ThroughputTimeSeriesCalculator,

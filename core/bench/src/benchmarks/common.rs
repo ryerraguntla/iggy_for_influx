@@ -25,10 +25,8 @@ use crate::{
     args::common::IggyBenchArgs,
     utils::finish_condition::{BenchmarkFinishCondition, BenchmarkFinishConditionMode},
 };
+use bench_report::{benchmark_kind::BenchmarkKind, individual_metrics::BenchmarkIndividualMetrics};
 use iggy::prelude::*;
-use iggy_bench_report::{
-    benchmark_kind::BenchmarkKind, individual_metrics::BenchmarkIndividualMetrics,
-};
 use integration::test_server::{login_root, ClientFactory};
 use std::{future::Future, sync::Arc};
 use tracing::{error, info};

@@ -78,5 +78,5 @@ licenses-check:
 licenses-list-check:
   ./scripts/licenses-list.sh --check
 
-licenses-list-update:
+licenses-list-fix:
   ./scripts/licenses-list.sh --update

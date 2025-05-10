@@ -20,13 +20,13 @@ use crate::analytics::record::BenchmarkRecord;
 use crate::analytics::time_series::calculator::TimeSeriesCalculator;
 use crate::analytics::time_series::processors::moving_average::MovingAverageProcessor;
 use crate::analytics::time_series::processors::TimeSeriesProcessor;
+use bench_report::actor_kind::ActorKind;
+use bench_report::benchmark_kind::BenchmarkKind;
+use bench_report::individual_metrics::BenchmarkIndividualMetrics;
+use bench_report::individual_metrics_summary::BenchmarkIndividualMetricsSummary;
+use bench_report::time_series::TimeSeries;
+use bench_report::utils::*;
 use iggy::prelude::IggyDuration;
-use iggy_bench_report::actor_kind::ActorKind;
-use iggy_bench_report::benchmark_kind::BenchmarkKind;
-use iggy_bench_report::individual_metrics::BenchmarkIndividualMetrics;
-use iggy_bench_report::individual_metrics_summary::BenchmarkIndividualMetricsSummary;
-use iggy_bench_report::time_series::TimeSeries;
-use iggy_bench_report::utils::*;
 
 pub fn from_records(
     records: Vec<BenchmarkRecord>,
