@@ -15,25 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Consumers;
+using Apache.Iggy.Enums;
+
+namespace Apache.Iggy.Contracts;
 
 /// <summary>
-///     Auto commit modes
+///     Represents metadata of all nodes in the cluster
 /// </summary>
-public enum AutoCommitMode
+public class ClusterMetadata
 {
     /// <summary>
-    ///     Set auto commit to true on polling messages
+    ///     Name of the cluster
     /// </summary>
-    Auto,
+    public required string Name { get; set; }
 
     /// <summary>
-    ///     Set offset after receive message
+    ///     Unique identifier of the cluster
     /// </summary>
-    AfterReceive,
+    public required uint Id { get; set; }
 
     /// <summary>
-    ///     Offset will not be stored automatically
+    ///     Transport used for cluster communication
     /// </summary>
-    Disabled
+    public required Protocol Transport { get; set; }
+
+    /// <summary>
+    ///     List of all nodes in the cluster
+    /// </summary>
+    public required ClusterNode[] Nodes { get; set; } = [];
 }

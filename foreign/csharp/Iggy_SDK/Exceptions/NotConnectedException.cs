@@ -15,25 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Consumers;
+namespace Apache.Iggy.Exceptions;
 
 /// <summary>
-///     Auto commit modes
+/// Represents an exception that is thrown when the client is not connected to the server.
 /// </summary>
-public enum AutoCommitMode
+public sealed class NotConnectedException : Exception
 {
-    /// <summary>
-    ///     Set auto commit to true on polling messages
-    /// </summary>
-    Auto,
-
-    /// <summary>
-    ///     Set offset after receive message
-    /// </summary>
-    AfterReceive,
-
-    /// <summary>
-    ///     Offset will not be stored automatically
-    /// </summary>
-    Disabled
+    internal NotConnectedException() : base("Iggy client is not connected to the server")
+    {
+    }
 }

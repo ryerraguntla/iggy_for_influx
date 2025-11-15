@@ -21,9 +21,11 @@ namespace Apache.Iggy.IggyClient;
 
 public interface IIggySystem
 {
+    Task ConnectAsync(CancellationToken token = default);
     Task<IReadOnlyList<ClientResponse>> GetClientsAsync(CancellationToken token = default);
     Task<ClientResponse?> GetClientByIdAsync(uint clientId, CancellationToken token = default);
     Task<ClientResponse?> GetMeAsync(CancellationToken token = default);
     Task<StatsResponse?> GetStatsAsync(CancellationToken token = default);
+    Task<ClusterMetadata?> GetClusterMetadataAsync(CancellationToken token = default);
     Task PingAsync(CancellationToken token = default);
 }

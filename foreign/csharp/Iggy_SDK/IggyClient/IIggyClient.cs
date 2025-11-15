@@ -20,4 +20,15 @@ namespace Apache.Iggy.IggyClient;
 public interface IIggyClient : IIggyPublisher, IIggyStream, IIggyTopic, IIggyConsumer, IIggyOffset, IIggyConsumerGroup,
     IIggySystem, IIggyPartition, IIggyUsers, IIggyPersonalAccessToken, IDisposable
 {
+    /// <summary>
+    /// Subscribes to connection state changes.
+    /// </summary>
+    /// <param name="callback">The method to be invoked when a connection event occurs.</param>
+    void SubscribeConnectionEvents(Func<ConnectionStateChangedEventArgs, Task> callback);
+
+    /// <summary>
+    /// Unsubscribes from connection state changes.
+    /// </summary>
+    /// <param name="callback">The method previously registered for connection event notifications.</param>
+    void UnsubscribeConnectionEvents(Func<ConnectionStateChangedEventArgs, Task> callback);
 }

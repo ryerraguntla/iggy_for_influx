@@ -15,25 +15,36 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Consumers;
+namespace Apache.Iggy.Enums;
 
 /// <summary>
-///     Auto commit modes
+///     Represents connection state to iggy server.
 /// </summary>
-public enum AutoCommitMode
+public enum ConnectionState
 {
     /// <summary>
-    ///     Set auto commit to true on polling messages
+    ///     Represents a state where the connection to the target server has been lost or terminated.
     /// </summary>
-    Auto,
+    Disconnected,
 
     /// <summary>
-    ///     Set offset after receive message
+    ///     Indicates a state where the connection to the server is in the process of being established.
     /// </summary>
-    AfterReceive,
+    Connecting,
 
     /// <summary>
-    ///     Offset will not be stored automatically
+    ///     Represents a state where the connection to the server has been successfully established.
     /// </summary>
-    Disabled
+    Connected,
+
+    /// <summary>
+    ///     Represents a state where the client is in the process of authenticating with the server.
+    /// </summary>
+    Authenticating,
+
+    /// <summary>
+    ///     Represents a state where the client has successfully authenticated with the target server after establishing a
+    ///     connection.
+    /// </summary>
+    Authenticated
 }

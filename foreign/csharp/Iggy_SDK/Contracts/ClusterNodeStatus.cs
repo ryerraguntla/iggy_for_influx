@@ -15,25 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Consumers;
+namespace Apache.Iggy.Contracts;
 
 /// <summary>
-///     Auto commit modes
+///     Current status of a node
 /// </summary>
-public enum AutoCommitMode
+public enum ClusterNodeStatus : byte
 {
     /// <summary>
-    ///     Set auto commit to true on polling messages
+    ///     Node is healthy and responsive
     /// </summary>
-    Auto,
+    Healthy = 0,
 
     /// <summary>
-    ///     Set offset after receive message
+    ///     Node is starting up
     /// </summary>
-    AfterReceive,
+    Starting = 1,
 
     /// <summary>
-    ///     Offset will not be stored automatically
+    ///     Node is shutting down
     /// </summary>
-    Disabled
+    Stopping = 2,
+
+    /// <summary>
+    ///     Node is unreachable
+    /// </summary>
+    Unreachable = 3,
+
+    /// <summary>
+    ///     Node is in maintenance mode
+    /// </summary>
+    Maintenance = 4
 }

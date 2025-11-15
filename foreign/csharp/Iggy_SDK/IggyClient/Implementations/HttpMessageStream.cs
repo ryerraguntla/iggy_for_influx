@@ -56,6 +56,15 @@ public class HttpMessageStream : IIggyClient
         };
     }
 
+    /// <summary>
+    ///     HTTP client does not support connection state changes, so this event is never fired.
+    /// </summary>
+    public event EventHandler<ConnectionStateChangedEventArgs>? OnConnectionStateChanged
+    {
+        add { }
+        remove { }
+    }
+
     public async Task<StreamResponse?> CreateStreamAsync(string name, CancellationToken token = default)
     {
         var json = JsonSerializer.Serialize(new CreateStreamRequest(name), _jsonSerializerOptions);
@@ -144,7 +153,7 @@ public class HttpMessageStream : IIggyClient
             MaxTopicSize = maxTopicSize,
             MessageExpiry = messageExpiry,
             PartitionsCount = partitionsCount,
-            ReplicationFactor = replicationFactor,
+            ReplicationFactor = replicationFactor
         }, _jsonSerializerOptions);
         var data = new StringContent(json, Encoding.UTF8, "application/json");
 
@@ -398,6 +407,24 @@ public class HttpMessageStream : IIggyClient
         return null;
     }
 
+    /// <summary>
+    ///     Get cluster metadata
+    /// </summary>
+    /// <param name="token"></param>
+    /// <returns>Cluster information</returns>
+    public async Task<ClusterMetadata?> GetClusterMetadataAsync(CancellationToken token = default)
+    {
+        var response = await _httpClient.GetAsync("/cluster/metadata", token);
+        if (response.IsSuccessStatusCode)
+        {
+            return await response.Content.ReadFromJsonAsync<ClusterMetadata>(_jsonSerializerOptions, token);
+        }
+
+        await HandleResponseAsync(response);
+
+        return null;
+    }
+
     public async Task PingAsync(CancellationToken token = default)
     {
         var response = await _httpClient.GetAsync("/ping", token);
@@ -406,6 +433,11 @@ public class HttpMessageStream : IIggyClient
         {
             await HandleResponseAsync(response);
         }
+    }
+
+    public Task ConnectAsync(CancellationToken token = default)
+    {
+        return Task.CompletedTask;
     }
 
     public async Task<IReadOnlyList<ClientResponse>> GetClientsAsync(CancellationToken token = default)
@@ -675,6 +707,16 @@ public class HttpMessageStream : IIggyClient
     {
     }
 
+    public void SubscribeConnectionEvents(Func<ConnectionStateChangedEventArgs, Task> callback)
+    {
+
+    }
+
+    public void UnsubscribeConnectionEvents(Func<ConnectionStateChangedEventArgs, Task> callback)
+    {
+
+    }
+
     private static async Task HandleResponseAsync(HttpResponseMessage response, bool shouldThrowOnGetNotFound = false)
     {
         if ((int)response.StatusCode > 300
@@ -683,7 +725,8 @@ public class HttpMessageStream : IIggyClient
                  !shouldThrowOnGetNotFound))
         {
             var err = await response.Content.ReadAsStringAsync();
-            throw new InvalidResponseException(err);
+            var errorModel = JsonSerializer.Deserialize<ErrorResponse>(err);
+            throw new IggyInvalidStatusCodeException(errorModel?.Id ?? -1, err);
         }
 
         if (response.StatusCode == HttpStatusCode.InternalServerError)

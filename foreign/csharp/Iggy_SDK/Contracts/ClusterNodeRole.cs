@@ -15,25 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Consumers;
+namespace Apache.Iggy.Contracts;
 
 /// <summary>
-///     Auto commit modes
+///     Node role within the cluster
 /// </summary>
-public enum AutoCommitMode
+public enum ClusterNodeRole : byte
 {
     /// <summary>
-    ///     Set auto commit to true on polling messages
+    ///     Primary/Leader node - handles all writes
     /// </summary>
-    Auto,
+    Leader = 0,
 
     /// <summary>
-    ///     Set offset after receive message
+    ///     Follower/Secondary node - read replica
     /// </summary>
-    AfterReceive,
-
-    /// <summary>
-    ///     Offset will not be stored automatically
-    /// </summary>
-    Disabled
+    Follower = 1
 }

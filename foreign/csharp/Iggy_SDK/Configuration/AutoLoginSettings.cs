@@ -15,25 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Consumers;
+namespace Apache.Iggy.Configuration;
 
 /// <summary>
-///     Auto commit modes
+///     Represents the settings required for automatic login functionality in the Iggy client.
 /// </summary>
-public enum AutoCommitMode
+public class AutoLoginSettings
 {
     /// <summary>
-    ///     Set auto commit to true on polling messages
+    ///     Enable automatic login on connection establishment
     /// </summary>
-    Auto,
+    public bool Enabled { get; set; }
 
     /// <summary>
-    ///     Set offset after receive message
+    ///     Specifies the username for auto-login configuration.
     /// </summary>
-    AfterReceive,
+    public string Username { get; set; } = string.Empty;
 
     /// <summary>
-    ///     Offset will not be stored automatically
+    ///     Specifies the password for auto-login authentication
     /// </summary>
-    Disabled
+    public string Password { get; set; } = string.Empty;
 }

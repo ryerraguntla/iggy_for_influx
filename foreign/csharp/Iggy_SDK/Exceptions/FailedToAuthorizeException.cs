@@ -15,25 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Consumers;
+namespace Apache.Iggy.Exceptions;
 
 /// <summary>
-///     Auto commit modes
+/// Represents an exception that is thrown when an authorization attempt fails.
 /// </summary>
-public enum AutoCommitMode
+public sealed class FailedToAuthorizeException : Exception
 {
-    /// <summary>
-    ///     Set auto commit to true on polling messages
-    /// </summary>
-    Auto,
+    public FailedToAuthorizeException()
+        : base("Failed to authorize the operation. Please check your credentials and permissions.")
+    {
+    }
 
-    /// <summary>
-    ///     Set offset after receive message
-    /// </summary>
-    AfterReceive,
-
-    /// <summary>
-    ///     Offset will not be stored automatically
-    /// </summary>
-    Disabled
+    public FailedToAuthorizeException(string message) : base(message)
+    {
+    }
 }

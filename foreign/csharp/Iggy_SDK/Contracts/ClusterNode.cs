@@ -15,25 +15,41 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Consumers;
+namespace Apache.Iggy.Contracts;
 
 /// <summary>
-///     Auto commit modes
+///     Cluster node metadata
 /// </summary>
-public enum AutoCommitMode
+public class ClusterNode
 {
     /// <summary>
-    ///     Set auto commit to true on polling messages
+    ///     Node identifier
     /// </summary>
-    Auto,
+    public required uint Id { get; set; }
 
     /// <summary>
-    ///     Set offset after receive message
+    ///     Node name
     /// </summary>
-    AfterReceive,
+    public required string Name { get; set; }
 
     /// <summary>
-    ///     Offset will not be stored automatically
+    ///     Node address
     /// </summary>
-    Disabled
+    public required string Address { get; set; }
+
+    /// <summary>
+    ///     Node role within the cluster
+    /// </summary>
+    public required ClusterNodeRole Role { get; set; }
+
+    /// <summary>
+    ///     Node status
+    /// </summary>
+    public required ClusterNodeStatus Status { get; set; }
+
+    internal int GetSize()
+    {
+        // id, name length, name, address length, address, role, status
+        return 4 + 4 + Name.Length + 4 + Address.Length + 1 + 1;
+    }
 }
