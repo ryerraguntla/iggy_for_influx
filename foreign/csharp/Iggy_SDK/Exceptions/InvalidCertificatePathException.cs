@@ -15,25 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Configuration;
+namespace Apache.Iggy.Exceptions;
 
 /// <summary>
-///     TLS configuration
+///     Exception thrown when the provided TLS certificate path is invalid.
 /// </summary>
-public class TlsSettings
+public class InvalidCertificatePathException : Exception
 {
     /// <summary>
-    ///     Whether TLS is enabled.
+    ///     Initializes a new instance of the <see cref="InvalidCertificatePathException" /> class.
     /// </summary>
-    public bool Enabled { get; set; }
+    /// <param name="tlsCertificatePath">Certificate path</param>
+    public InvalidCertificatePathException(string tlsCertificatePath) : base(
+        $"Invalid TLS certificate path: {tlsCertificatePath}")
 
-    /// <summary>
-    ///     The name of the server for TLS handshake.
-    /// </summary>
-    public string Hostname { get; set; } = string.Empty;
-
-    /// <summary>
-    ///     Path to the certificate (ca/self-signed) file.
-    /// </summary>
-    public string CertificatePath { get; set; } = string.Empty;
+    {
+    }
 }

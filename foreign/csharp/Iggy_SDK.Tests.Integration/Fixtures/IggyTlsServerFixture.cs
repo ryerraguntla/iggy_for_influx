@@ -15,25 +15,36 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Configuration;
+using Apache.Iggy.Tests.Integrations.Helpers;
+
+namespace Apache.Iggy.Tests.Integrations.Fixtures;
 
 /// <summary>
-///     TLS configuration
+///     Iggy server fixture configured with TLS enabled.
+///     Requires certificates to be mounted in the container.
 /// </summary>
-public class TlsSettings
+public class IggyTlsServerFixture : IggyServerFixture
 {
     /// <summary>
-    ///     Whether TLS is enabled.
+    ///     Environment variables with TLS configuration enabled.
     /// </summary>
-    public bool Enabled { get; set; }
+    protected override Dictionary<string, string> EnvironmentVariables => new(base.EnvironmentVariables)
+    {
+        { "IGGY_TCP_TLS_ENABLED", "true" },
+        { "IGGY_TCP_TLS_CERT_FILE", "/app/certs/iggy_cert.pem" },
+        { "IGGY_TCP_TLS_KEY_FILE", "/app/certs/iggy_key.pem" }
+    };
 
     /// <summary>
-    ///     The name of the server for TLS handshake.
+    ///     Resource mappings for TLS certificates.
     /// </summary>
-    public string Hostname { get; set; } = string.Empty;
+    protected override ResourceMapping[] ResourceMappings =>
+    [
+        new("Certs", "/app/certs/")
+    ];
 
-    /// <summary>
-    ///     Path to the certificate (ca/self-signed) file.
-    /// </summary>
-    public string CertificatePath { get; set; } = string.Empty;
+    public override async Task InitializeAsync()
+    {
+        await IggyContainer!.StartAsync();
+    }
 }

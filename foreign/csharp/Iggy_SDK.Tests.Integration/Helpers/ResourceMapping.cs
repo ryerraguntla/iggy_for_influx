@@ -15,25 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-namespace Apache.Iggy.Configuration;
+namespace Apache.Iggy.Tests.Integrations.Helpers;
 
-/// <summary>
-///     TLS configuration
-/// </summary>
-public class TlsSettings
-{
-    /// <summary>
-    ///     Whether TLS is enabled.
-    /// </summary>
-    public bool Enabled { get; set; }
-
-    /// <summary>
-    ///     The name of the server for TLS handshake.
-    /// </summary>
-    public string Hostname { get; set; } = string.Empty;
-
-    /// <summary>
-    ///     Path to the certificate (ca/self-signed) file.
-    /// </summary>
-    public string CertificatePath { get; set; } = string.Empty;
-}
+public record ResourceMapping(string Source, string Destination);
