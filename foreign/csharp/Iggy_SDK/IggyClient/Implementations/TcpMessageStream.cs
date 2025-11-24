@@ -802,7 +802,9 @@ public sealed class TcpMessageStream : IIggyClient
             _stream?.Close();
             _stream?.Dispose();
 
-            var connectionAddress = _currentLeaderNode?.Address ?? _configuration.BaseAddress;
+            var connectionAddress = _currentLeaderNode != null
+                ? $"{_currentLeaderNode.Ip}:{_currentLeaderNode.Endpoints.Tcp}"
+                : _configuration.BaseAddress;
             var urlPortSplitter = connectionAddress.Split(":");
             if (urlPortSplitter.Length > 2)
             {
@@ -842,13 +844,14 @@ public sealed class TcpMessageStream : IIggyClient
                         break;
                     }
 
-                    if (_currentLeaderNode.Address == _configuration.BaseAddress)
+                    var currentAddress = $"{_currentLeaderNode.Ip}:{_currentLeaderNode.Endpoints.Tcp}";
+                    if (currentAddress == _configuration.BaseAddress)
                     {
                         break;
                     }
 
                     _logger.LogInformation("Leader address changed. Trying to reconnect to {Address}",
-                        _currentLeaderNode.Address);
+                        currentAddress);
                     continue;
                 }
 
@@ -894,6 +897,12 @@ public sealed class TcpMessageStream : IIggyClient
         {
             var clusterMetadata = await GetClusterMetadataAsync(token);
             if (clusterMetadata == null)
+            {
+                return null;
+            }
+
+            // Single-node cluster (clustering disabled) - no redirection needed
+            if (clusterMetadata.Nodes.Count() == 1)
             {
                 return null;
             }
