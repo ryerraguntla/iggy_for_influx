@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,14 +17,10 @@
  * under the License.
  */
 
-export {
-  type Id,
-  PollingStrategy,
-  Consumer,
-  Partitioning,
-  HeaderValue,
-  HeaderKeyFactory,
-} from "./wire/index.js";
+package org.apache.iggy.message;
 
-export * from "./client/index.js";
-export * from "./stream/index.js";
+/**
+ * Represents a single header entry with key and value.
+ * Used for JSON serialization/deserialization of user headers.
+ */
+public record HeaderEntry(HeaderKey key, HeaderValue value) {}

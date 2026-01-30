@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,14 +17,19 @@
  * under the License.
  */
 
-export {
-  type Id,
-  PollingStrategy,
-  Consumer,
-  Partitioning,
-  HeaderValue,
-  HeaderKeyFactory,
-} from "./wire/index.js";
+package org.apache.iggy.serde;
 
-export * from "./client/index.js";
-export * from "./stream/index.js";
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
+
+import java.util.Base64;
+
+public class Base64Serializer extends ValueSerializer<byte[]> {
+
+    @Override
+    public void serialize(byte[] value, JsonGenerator gen, SerializationContext ctxt) throws JacksonException {
+        gen.writeString(Base64.getEncoder().encodeToString(value));
+    }
+}

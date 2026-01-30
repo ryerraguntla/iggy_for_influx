@@ -20,7 +20,6 @@ use anyhow::Result;
 use bytes::Bytes;
 use iggy::prelude::*;
 use iggy_examples::shared::args::Args;
-use iggy_examples::shared::messages_generator::MessagesGenerator;
 use iggy_examples::shared::system;
 use std::collections::HashMap;
 use std::error::Error;
@@ -32,13 +31,13 @@ use tracing_subscriber::{EnvFilter, Registry};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::parse_with_defaults("message-headers-producer");
+    let args = Args::parse_with_defaults("typed-headers-producer");
     Registry::default()
         .with(tracing_subscriber::fmt::layer())
         .with(EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("INFO")))
         .init();
     info!(
-        "Message headers producer has started, selected transport: {}",
+        "Typed headers producer has started, selected transport: {}",
         args.transport
     );
     let client_provider_config = Arc::new(ClientProviderConfig::from_args(args.to_sdk_args())?);
@@ -61,9 +60,10 @@ async fn produce_messages(args: &Args, client: &IggyClient) -> Result<(), Box<dy
     let stream_id = args.stream_id.clone().try_into()?;
     let topic_id = args.topic_id.clone().try_into()?;
     let mut interval = interval.map(|interval| tokio::time::interval(interval.get_duration()));
-    let mut message_generator = MessagesGenerator::new();
     let mut sent_batches = 0;
+    let mut message_id: u64 = 0;
     let partitioning = Partitioning::partition_id(args.partition_id);
+
     loop {
         if args.message_batches_limit > 0 && sent_batches == args.message_batches_limit {
             info!("Sent {sent_batches} batches of messages, exiting.");
@@ -75,33 +75,46 @@ async fn produce_messages(args: &Args, client: &IggyClient) -> Result<(), Box<dy
         }
 
         let mut messages = Vec::new();
-        let mut serializable_messages = Vec::new();
         for _ in 0..args.messages_per_batch {
-            let serializable_message = message_generator.generate();
-            // You can send the different message types to the same partition, or stick to the single type.
-            let message_type = serializable_message.get_message_type();
-            let json = serializable_message.to_json();
+            message_id += 1;
 
-            // The message type will be stored in the custom message header.
             let mut headers = HashMap::new();
             headers.insert(
-                HeaderKey::try_from("message_type").unwrap(),
-                HeaderValue::try_from(message_type).unwrap(),
+                HeaderKey::try_from("event_type")?,
+                HeaderValue::try_from("user_action")?,
+            );
+            headers.insert(1u32.into(), message_id.into());
+            headers.insert(
+                HeaderKey::try_from("important")?,
+                message_id.is_multiple_of(5).into(),
+            );
+            headers.insert(44u32.into(), (message_id as f64 * 2.0).into());
+            headers.insert(
+                HeaderKey::try_from("trace_id")?,
+                (message_id as i128 * 1_000_000_000_000).into(),
+            );
+            headers.insert(
+                HeaderKey::try_from([0xDE, 0xAD].as_slice())?,
+                HeaderValue::try_from([0xBE, 0xEF, 0xCA, 0xFE].as_slice())?,
             );
 
+            let payload =
+                format!(r#"{{"message_id":{message_id},"content":"Hello from typed headers!"}}"#,);
+
             let message = IggyMessage::builder()
-                .payload(Bytes::from(json))
+                .payload(Bytes::from(payload))
                 .user_headers(headers)
-                .build()
-                .unwrap();
+                .build()?;
             messages.push(message);
-            // This is used for the logging purposes only.
-            serializable_messages.push(serializable_message);
         }
+
         client
             .send_messages(&stream_id, &topic_id, &partitioning, &mut messages)
             .await?;
         sent_batches += 1;
-        info!("Sent messages: {:#?}", serializable_messages);
+        info!(
+            "Sent batch {} with {} messages (last message_id: {})",
+            sent_batches, args.messages_per_batch, message_id
+        );
     }
 }
