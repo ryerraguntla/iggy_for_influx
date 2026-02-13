@@ -29,6 +29,7 @@ mod stdout;
 
 use iggy_common::IggyTimestamp;
 use serde::{Deserialize, Serialize};
+mod redshift;
 
 const ONE_DAY_MICROS: u64 = 24 * 60 * 60 * 1_000_000;
 
