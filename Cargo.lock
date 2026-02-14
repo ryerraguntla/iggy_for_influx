@@ -4760,7 +4760,6 @@ version = "0.2.2-edge.1"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
- "chrono",
  "dashmap",
  "elasticsearch",
  "iggy_common",
