@@ -5073,6 +5073,7 @@ dependencies = [
  "configs",
  "configs_derive",
  "ctor",
+ "derive_more",
  "figment",
  "futures",
  "harness_derive",

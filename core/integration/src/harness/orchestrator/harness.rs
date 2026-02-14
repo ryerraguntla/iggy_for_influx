@@ -26,7 +26,9 @@ use crate::harness::handle::{
 };
 use crate::harness::traits::{Restartable, TestBinary};
 use futures::executor::block_on;
-use iggy::prelude::{ClientWrapper, IggyClient};
+use iggy::prelude::{
+    ClientWrapper, IggyClient, 
+};
 use iggy_common::TransportProtocol;
 use std::path::Path;
 use std::sync::Arc;
