@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 source_connector!(InfluxDbSource);
@@ -169,13 +169,13 @@ impl InfluxDbSource {
     fn build_health_url(&self) -> Result<Url, Error> {
         let base = self.config.url.trim_end_matches('/');
         Url::parse(&format!("{base}/health"))
-            .map_err(|e| Error::InvalidConfig(format!("Invalid InfluxDB URL: {e}")))
+            .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}"))) 
     }
 
     fn build_query_url(&self) -> Result<Url, Error> {
         let base = self.config.url.trim_end_matches('/');
         let mut url = Url::parse(&format!("{base}/api/v2/query"))
-            .map_err(|e| Error::InvalidConfig(format!("Invalid InfluxDB URL: {e}")))?;
+            .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}").into()))?;
         url.query_pairs_mut().append_pair("org", &self.config.org);
         Ok(url)
     }
@@ -304,7 +304,7 @@ impl InfluxDbSource {
         let mut rows = Vec::new();
 
         for result in reader.records() {
-            let record = result.map_err(|e| Error::InvalidRecord(format!("Invalid CSV record: {e}")))?;
+            let record = result.map_err(|e| Error::InvalidRecordValue(format!("Invalid CSV record: {e}")))?;
 
             if record.is_empty() {
                 continue;
@@ -356,12 +356,12 @@ impl InfluxDbSource {
             let raw_value = row
                 .get(payload_column)
                 .cloned()
-                .ok_or_else(|| Error::InvalidRecord(format!("Missing payload column '{payload_column}'")))?;
+                .ok_or_else(|| Error::InvalidRecordValue(format!("Missing payload column '{payload_column}'")))?;
 
             return match self.payload_format() {
                 PayloadFormat::Json => {
                     let value: serde_json::Value = serde_json::from_str(&raw_value).map_err(|e| {
-                        Error::InvalidRecord(format!(
+                        Error::InvalidRecordValue(format!(
                             "Payload column '{payload_column}' is not valid JSON: {e}"
                         ))
                     })?;
@@ -373,7 +373,7 @@ impl InfluxDbSource {
                     .decode(raw_value.as_bytes())
                     .or_else(|_| Ok(raw_value.into_bytes()))
                     .map_err(|e: base64::DecodeError| {
-                        Error::InvalidRecord(format!("Failed to decode payload as base64: {e}"))
+                        Error::InvalidRecordValue(format!("Failed to decode payload as base64: {e}"))
                     }),
             };
         }

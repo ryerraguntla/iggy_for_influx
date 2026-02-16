@@ -121,7 +121,7 @@ impl InfluxDbSink {
     fn build_write_url(&self) -> Result<Url, Error> {
         let base = self.config.url.trim_end_matches('/');
         let mut url = Url::parse(&format!("{base}/api/v2/write"))
-            .map_err(|e| Error::InvalidConfig(format!("Invalid InfluxDB URL: {e}")))?;
+            .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}")))?;
 
         let precision = self.config.precision.as_deref().unwrap_or(DEFAULT_PRECISION);
         url.query_pairs_mut()
@@ -135,7 +135,7 @@ impl InfluxDbSink {
     fn build_health_url(&self) -> Result<Url, Error> {
         let base = self.config.url.trim_end_matches('/');
         Url::parse(&format!("{base}/health"))
-            .map_err(|e| Error::InvalidConfig(format!("Invalid InfluxDB URL: {e}")))
+            .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}")))
     }
 
     async fn check_connectivity(&self) -> Result<(), Error> {

@@ -334,8 +334,12 @@ pub trait StreamEncoder: Send + Sync {
 pub enum Error {
     #[error("Invalid config")]
     InvalidConfig,
+    #[error("Invalid configValue: {0}")]
+    InvalidConfigValue(String),
     #[error("Invalid record")]
     InvalidRecord,
+    #[error("Invalid record value : {0}")]
+    InvalidRecordValue(String),
     #[error("Invalid transformer")]
     InvalidTransformer,
     #[error("HTTP request failed: {0}")]
