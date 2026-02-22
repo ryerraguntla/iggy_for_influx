@@ -183,6 +183,11 @@ runs:
         PKG_CONFIG_ALL_STATIC: "1"
 
     # macOS builds
+    - name: Install system dependencies (macOS)
+      if: inputs.task == 'build-macos-aarch64'
+      run: brew install hwloc
+      shell: bash
+
     - name: Build macOS aarch64
       if: inputs.task == 'build-macos-aarch64'
       run: cargo build --locked
