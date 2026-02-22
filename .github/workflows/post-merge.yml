@@ -134,6 +134,7 @@ jobs:
   call-publish:
     name: Publish components
     needs: check-auto-publish
+    if: false  # Disable publishing to crates.io for personal fork
     uses: ./.github/workflows/publish.yml
     with:
       commit: ${{ github.sha }}
