@@ -95,6 +95,10 @@ jobs:
           /tmp/copy-latest-from-master.sh save .github scripts
           /tmp/copy-latest-from-master.sh apply
 
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install hwloc
+
       - name: Install musl-tools
         if: matrix.libc == 'musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
