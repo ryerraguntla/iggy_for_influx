@@ -54,6 +54,12 @@ jobs:
         run: echo "No changes detected, skipping tests"
 
       # Rust
+      - name: Install hwloc
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install hwloc
+
       - name: Run Rust task
         if: startsWith(inputs.component, 'rust')
         uses: ./.github/actions/rust/pre-merge
