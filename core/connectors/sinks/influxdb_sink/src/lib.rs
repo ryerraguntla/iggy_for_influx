@@ -123,7 +123,11 @@ impl InfluxDbSink {
         let mut url = Url::parse(&format!("{base}/api/v2/write"))
             .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}")))?;
 
-        let precision = self.config.precision.as_deref().unwrap_or(DEFAULT_PRECISION);
+        let precision = self
+            .config
+            .precision
+            .as_deref()
+            .unwrap_or(DEFAULT_PRECISION);
         url.query_pairs_mut()
             .append_pair("org", &self.config.org)
             .append_pair("bucket", &self.config.bucket)
@@ -180,11 +184,17 @@ impl InfluxDbSink {
     }
 
     fn timestamp_precision(&self) -> &str {
-        self.config.precision.as_deref().unwrap_or(DEFAULT_PRECISION)
+        self.config
+            .precision
+            .as_deref()
+            .unwrap_or(DEFAULT_PRECISION)
     }
 
     fn get_max_retries(&self) -> u32 {
-        self.config.max_retries.unwrap_or(DEFAULT_MAX_RETRIES).max(1)
+        self.config
+            .max_retries
+            .unwrap_or(DEFAULT_MAX_RETRIES)
+            .max(1)
     }
 
     fn to_precision_timestamp(&self, millis: u64) -> u64 {
@@ -221,7 +231,10 @@ impl InfluxDbSink {
         }
 
         let mut fields = vec![
-            format!("message_id=\"{}\"", escape_field_string(&message.id.to_string())),
+            format!(
+                "message_id=\"{}\"",
+                escape_field_string(&message.id.to_string())
+            ),
             format!("offset={}i", message.offset as i64),
         ];
 
@@ -238,14 +251,20 @@ impl InfluxDbSink {
             ));
         }
         if include_metadata && !self.config.include_partition_tag.unwrap_or(true) {
-            fields.push(format!("iggy_partition={}i", messages_metadata.partition_id as i64));
+            fields.push(format!(
+                "iggy_partition={}i",
+                messages_metadata.partition_id as i64
+            ));
         }
 
         if include_checksum {
             fields.push(format!("iggy_checksum={}i", message.checksum as i64));
         }
         if include_origin_timestamp {
-            fields.push(format!("iggy_origin_timestamp={}i", message.origin_timestamp as i64));
+            fields.push(format!(
+                "iggy_origin_timestamp={}i",
+                message.origin_timestamp as i64
+            ));
         }
 
         let payload_bytes = message.payload.clone().try_into_vec().map_err(|e| {
@@ -254,15 +273,19 @@ impl InfluxDbSink {
 
         match self.payload_format() {
             PayloadFormat::Json => {
-                let value: serde_json::Value = serde_json::from_slice(&payload_bytes).map_err(|e| {
-                    Error::CannotStoreData(format!(
-                        "Payload format is json but payload is invalid JSON: {e}"
-                    ))
-                })?;
+                let value: serde_json::Value =
+                    serde_json::from_slice(&payload_bytes).map_err(|e| {
+                        Error::CannotStoreData(format!(
+                            "Payload format is json but payload is invalid JSON: {e}"
+                        ))
+                    })?;
                 let compact = serde_json::to_string(&value).map_err(|e| {
                     Error::CannotStoreData(format!("Failed to serialize JSON payload: {e}"))
                 })?;
-                fields.push(format!("payload_json=\"{}\"", escape_field_string(&compact)));
+                fields.push(format!(
+                    "payload_json=\"{}\"",
+                    escape_field_string(&compact)
+                ));
             }
             PayloadFormat::Text => {
                 let text = String::from_utf8(payload_bytes).map_err(|e| {
@@ -274,7 +297,10 @@ impl InfluxDbSink {
             }
             PayloadFormat::Base64 => {
                 let encoded = general_purpose::STANDARD.encode(payload_bytes);
-                fields.push(format!("payload_base64=\"{}\"", escape_field_string(&encoded)));
+                fields.push(format!(
+                    "payload_base64=\"{}\"",
+                    escape_field_string(&encoded)
+                ));
             }
         }
 

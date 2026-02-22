@@ -149,7 +149,10 @@ impl InfluxDbSource {
     }
 
     fn get_max_retries(&self) -> u32 {
-        self.config.max_retries.unwrap_or(DEFAULT_MAX_RETRIES).max(1)
+        self.config
+            .max_retries
+            .unwrap_or(DEFAULT_MAX_RETRIES)
+            .max(1)
     }
 
     fn build_client(&self) -> Result<Client, Error> {
@@ -169,13 +172,13 @@ impl InfluxDbSource {
     fn build_health_url(&self) -> Result<Url, Error> {
         let base = self.config.url.trim_end_matches('/');
         Url::parse(&format!("{base}/health"))
-            .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}"))) 
+            .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}")))
     }
 
     fn build_query_url(&self) -> Result<Url, Error> {
         let base = self.config.url.trim_end_matches('/');
         let mut url = Url::parse(&format!("{base}/api/v2/query"))
-            .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}").into()))?;
+            .map_err(|e| Error::InvalidConfigValue(format!("Invalid InfluxDB URL: {e}")))?;
         url.query_pairs_mut().append_pair("org", &self.config.org);
         Ok(url)
     }
@@ -304,7 +307,8 @@ impl InfluxDbSource {
         let mut rows = Vec::new();
 
         for result in reader.records() {
-            let record = result.map_err(|e| Error::InvalidRecordValue(format!("Invalid CSV record: {e}")))?;
+            let record = result
+                .map_err(|e| Error::InvalidRecordValue(format!("Invalid CSV record: {e}")))?;
 
             if record.is_empty() {
                 continue;
@@ -353,27 +357,30 @@ impl InfluxDbSource {
         include_metadata: bool,
     ) -> Result<Vec<u8>, Error> {
         if let Some(payload_column) = self.config.payload_column.as_deref() {
-            let raw_value = row
-                .get(payload_column)
-                .cloned()
-                .ok_or_else(|| Error::InvalidRecordValue(format!("Missing payload column '{payload_column}'")))?;
+            let raw_value = row.get(payload_column).cloned().ok_or_else(|| {
+                Error::InvalidRecordValue(format!("Missing payload column '{payload_column}'"))
+            })?;
 
             return match self.payload_format() {
                 PayloadFormat::Json => {
-                    let value: serde_json::Value = serde_json::from_str(&raw_value).map_err(|e| {
-                        Error::InvalidRecordValue(format!(
-                            "Payload column '{payload_column}' is not valid JSON: {e}"
-                        ))
-                    })?;
-                    serde_json::to_vec(&value)
-                        .map_err(|e| Error::Serialization(format!("JSON serialization failed: {e}")))
+                    let value: serde_json::Value =
+                        serde_json::from_str(&raw_value).map_err(|e| {
+                            Error::InvalidRecordValue(format!(
+                                "Payload column '{payload_column}' is not valid JSON: {e}"
+                            ))
+                        })?;
+                    serde_json::to_vec(&value).map_err(|e| {
+                        Error::Serialization(format!("JSON serialization failed: {e}"))
+                    })
                 }
                 PayloadFormat::Text => Ok(raw_value.into_bytes()),
                 PayloadFormat::Raw => general_purpose::STANDARD
                     .decode(raw_value.as_bytes())
                     .or_else(|_| Ok(raw_value.into_bytes()))
                     .map_err(|e: base64::DecodeError| {
-                        Error::InvalidRecordValue(format!("Failed to decode payload as base64: {e}"))
+                        Error::InvalidRecordValue(format!(
+                            "Failed to decode payload as base64: {e}"
+                        ))
                     }),
             };
         }

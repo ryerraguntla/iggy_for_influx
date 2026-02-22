@@ -34,8 +34,8 @@ members = [
     "core/connectors/runtime",
     "core/connectors/sdk",
     "core/connectors/sinks/elasticsearch_sink",
-    "core/connectors/sinks/influxdb_sink",
     "core/connectors/sinks/iceberg_sink",
+    "core/connectors/sinks/influxdb_sink",
     "core/connectors/sinks/postgres_sink",
     "core/connectors/sinks/quickwit_sink",
     "core/connectors/sinks/redshift_sink",
@@ -128,9 +128,9 @@ configs_derive = { path = "core/configs_derive", version = "0.1.0" }
 consensus = { path = "core/consensus" }
 console-subscriber = "0.5.0"
 crossbeam = "0.8.4"
+csv = "1.4.0"
 ctor = "0.6.3"
 ctrlc = { version = "3.5", features = ["termination"] }
-csv = "1.4.0"
 cucumber = "0.22"
 cyper = { version = "0.7.1", features = ["rustls"], default-features = false }
 cyper-axum = { version = "0.7.1" }
