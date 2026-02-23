@@ -50,6 +50,7 @@ runs:
       if: runner.os == 'macOS'
       run: |
         brew install hwloc
+        echo "HWLOC_VERSION=$(brew list --versions hwloc | awk '{print $2}')" >> $GITHUB_ENV
       shell: bash
 
     - name: Setup Rust toolchain
@@ -63,6 +64,7 @@ runs:
       with:
         shared-key: ${{ inputs.shared-key }}
         save-if: ${{ inputs.save-cache == 'true' }}
+        env-vars: "HWLOC_VERSION"
 
     - name: Cache status
       if: inputs.read-cache == 'true' && inputs.print-cache-status == 'true'
