@@ -162,6 +162,10 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install hwloc
 
+      - name: Install system dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libhwloc-dev
+
       - name: Setup Rust with cache
         uses: ./.github/actions/utils/setup-rust-with-cache
         with:
@@ -193,7 +197,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update --yes
-          sudo apt-get install --yes gnome-keyring keyutils
+          sudo apt-get install --yes gnome-keyring keyutils libhwloc-dev
           rm -f $HOME/.local/share/keyrings/*
           echo -n "test" | gnome-keyring-daemon --unlock
 
