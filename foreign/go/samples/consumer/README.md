@@ -12,7 +12,7 @@ To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites
 
-In order to use this SDK you need to install golang on your enviroment. Here's a <a hfref="https://go.dev/doc/install">link to official go documentation</a> explaining how you can do that!
+In order to use this SDK you need to install golang on your environment. Here's a <a hfref="https://go.dev/doc/install">link to official go documentation</a> explaining how you can do that!
 
 ## Usage
 
