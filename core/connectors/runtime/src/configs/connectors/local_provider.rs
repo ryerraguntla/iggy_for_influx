@@ -853,3 +853,726 @@ impl Provider for ConnectorEnvProvider {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::configs::connectors::{
+        ConfigFormat, CreateSinkConfig, CreateSourceConfig, StreamConsumerConfig,
+        StreamProducerConfig,
+    };
+    use iggy_connector_sdk::Schema;
+    use tempfile::TempDir;
+
+    // -------------------------------------------------------------------------
+    // HELPERS
+    // -------------------------------------------------------------------------
+
+    fn temp_dir() -> TempDir {
+        tempfile::tempdir().expect("Failed to create temp dir")
+    }
+
+    fn make_sink_toml(key: &str) -> String {
+        format!(
+            r#"type = "sink"
+key = "{key}"
+enabled = true
+version = 0
+name = "Test Sink"
+path = "/tmp/test_plugin.so"
+verbose = false
+
+[[streams]]
+stream = "events"
+topics = ["user_events"]
+schema = "json"
+"#
+        )
+    }
+
+    fn make_source_toml(key: &str) -> String {
+        format!(
+            r#"type = "source"
+key = "{key}"
+enabled = true
+version = 0
+name = "Test Source"
+path = "/tmp/test_plugin.so"
+verbose = false
+
+[[streams]]
+stream = "events"
+topic = "user_events"
+schema = "json"
+"#
+        )
+    }
+
+    fn make_create_sink_config(name: &str) -> CreateSinkConfig {
+        CreateSinkConfig {
+            enabled: true,
+            name: name.to_string(),
+            path: "/tmp/plugin.so".to_string(),
+            transforms: None,
+            streams: vec![StreamConsumerConfig {
+                stream: "events".to_string(),
+                topics: vec!["user_events".to_string()],
+                schema: Schema::default(),
+                batch_length: None,
+                poll_interval: None,
+                consumer_group: None,
+            }],
+            plugin_config_format: Some(ConfigFormat::Json),
+            plugin_config: None,
+            verbose: false,
+        }
+    }
+
+    fn make_create_source_config(name: &str) -> CreateSourceConfig {
+        CreateSourceConfig {
+            enabled: true,
+            name: name.to_string(),
+            path: "/tmp/plugin.so".to_string(),
+            transforms: None,
+            streams: vec![StreamProducerConfig {
+                stream: "events".to_string(),
+                topic: "user_events".to_string(),
+                schema: Schema::default(),
+                batch_length: None,
+                linger_time: None,
+            }],
+            plugin_config_format: Some(ConfigFormat::Json),
+            plugin_config: None,
+            verbose: false,
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // INIT TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_init_with_empty_config_dir_returns_error() {
+        let provider = LocalConnectorsConfigProvider::new("");
+        let result = provider.init().await;
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            RuntimeError::InvalidConfiguration(msg) => {
+                assert!(msg.contains("not provided"));
+            }
+            e => panic!("Unexpected error: {e:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_init_creates_missing_directory() {
+        let dir = temp_dir();
+        let new_path = dir.path().join("new_config_dir");
+        let provider = LocalConnectorsConfigProvider::new(new_path.to_str().unwrap());
+        let result = provider.init().await;
+        assert!(result.is_ok());
+        assert!(new_path.exists());
+    }
+
+    #[tokio::test]
+    async fn test_init_loads_sink_toml_from_directory() {
+        let dir = temp_dir();
+        std::fs::write(
+            dir.path().join("sink_influxdb_0.toml"),
+            make_sink_toml("influxdb"),
+        )
+        .unwrap();
+
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+        let configs = initialized.get_sink_configs("influxdb").await.unwrap();
+        assert_eq!(configs.len(), 1);
+        assert_eq!(configs[0].key, "influxdb");
+    }
+
+    #[tokio::test]
+    async fn test_init_loads_source_toml_from_directory() {
+        let dir = temp_dir();
+        std::fs::write(
+            dir.path().join("source_influxdb_0.toml"),
+            make_source_toml("influxdb"),
+        )
+        .unwrap();
+
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+        let configs = initialized.get_source_configs("influxdb").await.unwrap();
+        assert_eq!(configs.len(), 1);
+        assert_eq!(configs[0].key, "influxdb");
+    }
+
+    #[tokio::test]
+    async fn test_init_skips_non_toml_files() {
+        let dir = temp_dir();
+        std::fs::write(dir.path().join("not_a_config.json"), r#"{"key": "test"}"#).unwrap();
+        std::fs::write(dir.path().join("readme.txt"), "some text").unwrap();
+
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+        let active = initialized.get_active_configs().await.unwrap();
+        assert!(active.sinks().is_empty());
+        assert!(active.sources().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_init_skips_hidden_files() {
+        let dir = temp_dir();
+        std::fs::write(dir.path().join(".hidden.toml"), make_sink_toml("hidden")).unwrap();
+
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+        let configs = initialized.get_sink_configs("hidden").await.unwrap();
+        assert!(configs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_init_skips_cargo_toml() {
+        let dir = temp_dir();
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname = \"test\"").unwrap();
+
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let result = provider.init().await;
+        assert!(result.is_ok());
+    }
+
+    // -------------------------------------------------------------------------
+    // CREATE SINK CONFIG TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_create_sink_config_persisted_to_disk() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        let cmd = make_create_sink_config("InfluxDB Sink");
+        initialized
+            .create_sink_config("influxdb", cmd)
+            .await
+            .unwrap();
+
+        let toml_path = dir.path().join("sink_influxdb_0.toml");
+        assert!(toml_path.exists(), "TOML file should be written to disk");
+    }
+
+    #[tokio::test]
+    async fn test_create_sink_config_version_increments() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        let v0 = initialized
+            .create_sink_config("influxdb", make_create_sink_config("Sink v0"))
+            .await
+            .unwrap();
+        let v1 = initialized
+            .create_sink_config("influxdb", make_create_sink_config("Sink v1"))
+            .await
+            .unwrap();
+
+        assert_eq!(v0.version, 0);
+        assert_eq!(v1.version, 1);
+    }
+
+    #[tokio::test]
+    async fn test_create_multiple_sink_connectors_different_keys() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("InfluxDB"))
+            .await
+            .unwrap();
+        initialized
+            .create_sink_config("postgres", make_create_sink_config("Postgres"))
+            .await
+            .unwrap();
+
+        let influx_configs = initialized.get_sink_configs("influxdb").await.unwrap();
+        let pg_configs = initialized.get_sink_configs("postgres").await.unwrap();
+        assert_eq!(influx_configs.len(), 1);
+        assert_eq!(pg_configs.len(), 1);
+    }
+
+    // -------------------------------------------------------------------------
+    // CREATE SOURCE CONFIG TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_create_source_config_persisted_to_disk() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_source_config("influxdb", make_create_source_config("InfluxDB Source"))
+            .await
+            .unwrap();
+
+        let toml_path = dir.path().join("source_influxdb_0.toml");
+        assert!(toml_path.exists());
+    }
+
+    #[tokio::test]
+    async fn test_create_source_config_version_increments() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        let v0 = initialized
+            .create_source_config("influxdb", make_create_source_config("Source v0"))
+            .await
+            .unwrap();
+        let v1 = initialized
+            .create_source_config("influxdb", make_create_source_config("Source v1"))
+            .await
+            .unwrap();
+
+        assert_eq!(v0.version, 0);
+        assert_eq!(v1.version, 1);
+    }
+
+    // -------------------------------------------------------------------------
+    // GET ACTIVE CONFIGS TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_get_active_configs_returns_latest_version_by_default() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v1"))
+            .await
+            .unwrap();
+
+        let active = initialized.get_active_configs().await.unwrap();
+        let sink = active.sinks().get("influxdb").unwrap();
+        assert_eq!(sink.version, 1, "Should return latest version by default");
+    }
+
+    #[tokio::test]
+    async fn test_get_active_configs_empty_when_no_configs_loaded() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+        let active = initialized.get_active_configs().await.unwrap();
+        assert!(active.sinks().is_empty());
+        assert!(active.sources().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_active_configs_respects_pinned_version() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v1"))
+            .await
+            .unwrap();
+
+        // Pin to version 0
+        initialized
+            .set_active_sink_version("influxdb", 0)
+            .await
+            .unwrap();
+
+        let active = initialized.get_active_configs().await.unwrap();
+        let sink = active.sinks().get("influxdb").unwrap();
+        assert_eq!(sink.version, 0, "Should return pinned version 0");
+    }
+
+    // -------------------------------------------------------------------------
+    // GET SINK / SOURCE CONFIG TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_get_sink_config_by_version() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v1"))
+            .await
+            .unwrap();
+
+        let config = initialized
+            .get_sink_config("influxdb", Some(0))
+            .await
+            .unwrap();
+        assert!(config.is_some());
+        assert_eq!(config.unwrap().version, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_sink_config_none_version_returns_latest() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v1"))
+            .await
+            .unwrap();
+
+        let config = initialized.get_sink_config("influxdb", None).await.unwrap();
+        assert_eq!(config.unwrap().version, 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_sink_config_unknown_key_returns_none() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        let result = initialized
+            .get_sink_config("nonexistent", None)
+            .await
+            .unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_source_config_by_version() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_source_config("influxdb", make_create_source_config("v0"))
+            .await
+            .unwrap();
+
+        let config = initialized
+            .get_source_config("influxdb", Some(0))
+            .await
+            .unwrap();
+        assert!(config.is_some());
+        assert_eq!(config.unwrap().version, 0);
+    }
+
+    // -------------------------------------------------------------------------
+    // SET ACTIVE VERSION TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_set_active_sink_version_valid() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v1"))
+            .await
+            .unwrap();
+
+        let result = initialized.set_active_sink_version("influxdb", 0).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_set_active_sink_version_nonexistent_returns_error() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        let result = initialized.set_active_sink_version("influxdb", 99).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_set_active_source_version_valid() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_source_config("influxdb", make_create_source_config("v0"))
+            .await
+            .unwrap();
+
+        let result = initialized.set_active_source_version("influxdb", 0).await;
+        assert!(result.is_ok());
+    }
+
+    // -------------------------------------------------------------------------
+    // DELETE SINK / SOURCE CONFIG TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_delete_sink_config_removes_file_from_disk() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+
+        let toml_path = dir.path().join("sink_influxdb_0.toml");
+        assert!(toml_path.exists());
+
+        initialized
+            .delete_sink_config("influxdb", Some(0))
+            .await
+            .unwrap();
+        assert!(!toml_path.exists(), "File should be deleted from disk");
+    }
+
+    #[tokio::test]
+    async fn test_delete_sink_config_no_longer_returned() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+        initialized
+            .delete_sink_config("influxdb", Some(0))
+            .await
+            .unwrap();
+
+        let configs = initialized.get_sink_configs("influxdb").await.unwrap();
+        assert!(configs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delete_nonexistent_sink_config_returns_error() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        let result = initialized.delete_sink_config("nonexistent", Some(0)).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_delete_source_config_removes_from_disk() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_source_config("influxdb", make_create_source_config("v0"))
+            .await
+            .unwrap();
+
+        initialized
+            .delete_source_config("influxdb", Some(0))
+            .await
+            .unwrap();
+
+        let configs = initialized.get_source_configs("influxdb").await.unwrap();
+        assert!(configs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delete_one_version_keeps_others() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v1"))
+            .await
+            .unwrap();
+
+        initialized
+            .delete_sink_config("influxdb", Some(0))
+            .await
+            .unwrap();
+
+        let configs = initialized.get_sink_configs("influxdb").await.unwrap();
+        assert_eq!(configs.len(), 1);
+        assert_eq!(configs[0].version, 1);
+    }
+
+    // -------------------------------------------------------------------------
+    // ACTIVE VERSIONS PERSISTENCE TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_active_versions_file_created_after_set() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        initialized
+            .create_sink_config("influxdb", make_create_sink_config("v0"))
+            .await
+            .unwrap();
+        initialized
+            .set_active_sink_version("influxdb", 0)
+            .await
+            .unwrap();
+
+        let versions_file = dir.path().join(".active_versions.toml");
+        assert!(
+            versions_file.exists(),
+            ".active_versions.toml should be created"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_active_versions_default_when_file_missing() {
+        let dir = temp_dir();
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+
+        // No .active_versions.toml written — should default gracefully
+        let active = initialized.get_active_configs().await.unwrap();
+        assert!(active.sinks().is_empty());
+    }
+
+    // -------------------------------------------------------------------------
+    // ENV OVERRIDE TESTS
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_plugin_config_overridden_by_env_var() {
+        let dir = temp_dir();
+
+        // Write a sink config with plugin_config
+        let toml = r#"type = "sink"
+key = "influxdb"
+enabled = true
+version = 0
+name = "InfluxDB Sink"
+path = "/tmp/plugin.so"
+verbose = false
+plugin_config_format = "json"
+
+[plugin_config]
+url = "http://localhost:8086"
+org = "iggy_org"
+
+[[streams]]
+stream = "events"
+topics = ["user_events"]
+schema = "json"
+"#;
+        std::fs::write(dir.path().join("sink_influxdb_0.toml"), toml).unwrap();
+
+        // Set env override
+        // SAFETY: test-only, single-threaded
+        unsafe {
+            std::env::set_var(
+                "IGGY_CONNECTORS_SINK_INFLUXDB_PLUGIN_CONFIG_URL",
+                "http://override:8086",
+            );
+        }
+
+        let provider = LocalConnectorsConfigProvider::new(dir.path().to_str().unwrap());
+        let initialized = provider.init().await.unwrap();
+        let config = initialized
+            .get_sink_config("influxdb", Some(0))
+            .await
+            .unwrap()
+            .unwrap();
+
+        if let Some(plugin_config) = &config.plugin_config {
+            assert_eq!(plugin_config["url"], "http://override:8086");
+        }
+
+        // Cleanup
+        // SAFETY: test-only cleanup
+        unsafe {
+            std::env::remove_var("IGGY_CONNECTORS_SINK_INFLUXDB_PLUGIN_CONFIG_URL");
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // CONNECTOR ID TESTS
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_connector_id_filename_key_format() {
+        let id = ConnectorId {
+            key: "influxdb".to_string(),
+            version: 3,
+        };
+        assert_eq!(id.to_filename_key(), "influxdb_3");
+    }
+
+    #[test]
+    fn test_connector_id_from_sink_config() {
+        let config = ConnectorConfig::Sink(SinkConfig {
+            key: "influxdb".to_string(),
+            version: 2,
+            ..Default::default()
+        });
+        let id: ConnectorId = (&config).into();
+        assert_eq!(id.key, "influxdb");
+        assert_eq!(id.version, 2);
+    }
+
+    #[test]
+    fn test_connector_id_from_source_config() {
+        let config = ConnectorConfig::Source(SourceConfig {
+            key: "influxdb".to_string(),
+            version: 5,
+            ..Default::default()
+        });
+        let id: ConnectorId = (&config).into();
+        assert_eq!(id.key, "influxdb");
+        assert_eq!(id.version, 5);
+    }
+
+    // -------------------------------------------------------------------------
+    // BASE CONNECTOR CONFIG TESTS
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_base_connector_config_key_sink() {
+        let config = BaseConnectorConfig::Sink {
+            key: "influxdb".to_string(),
+        };
+        assert_eq!(config.key(), "influxdb");
+        assert_eq!(config.connector_type(), "sink");
+    }
+
+    #[test]
+    fn test_base_connector_config_key_source() {
+        let config = BaseConnectorConfig::Source {
+            key: "influxdb".to_string(),
+        };
+        assert_eq!(config.key(), "influxdb");
+        assert_eq!(config.connector_type(), "source");
+    }
+}

@@ -41,7 +41,6 @@ dashmap = { workspace = true }
 futures = { workspace = true }
 iggy_connector_sdk = { workspace = true }
 once_cell = { workspace = true }
-rust-s3 = { workspace = true }
 serde = { workspace = true }
 simd-json = { workspace = true }
 sqlx = { version = "0.8", features = [
