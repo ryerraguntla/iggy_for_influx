@@ -61,6 +61,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Cache pip
         if: inputs.component == 'examples-suite' && inputs.task == 'examples-python'
         uses: actions/cache@v4
