@@ -2,18 +2,15 @@
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
+ * regarding copyright ownership.  The ASF licenses you to
+ * you under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
+ * software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the specific language governing permissions and limitations
  * under the License.
  */
 
@@ -26,7 +23,7 @@ use integration::iggy_harness;
 use serde_json::Value;
 
 #[iggy_harness(
-    server(connectors_runtime(config_path = "tests/connectors/influxdb/source.toml")),
+    server(connectors_runtime(config_path = "tests/connectors/influxdb/source.toml"),
     seed = seeds::connector_stream
 )]
 async fn influxdb_source_polls_and_produces_messages(
@@ -37,7 +34,7 @@ async fn influxdb_source_polls_and_produces_messages(
     let lines: Vec<String> = (0..TEST_MESSAGE_COUNT)
         .map(|i| {
             format!(
-                "sensor_readings,loc=lab v={v} {ts}",
+                "sensor_readings,loc=lab v={{v}} {{ts}}",
                 v = 20.0 + i as f64,
                 ts = base_ts + i as u64 * 1000,
             )
@@ -79,12 +76,12 @@ async fn influxdb_source_polls_and_produces_messages(
 
     assert_eq!(
         total, TEST_MESSAGE_COUNT,
-        "Expected {TEST_MESSAGE_COUNT} messages, got {total}"
+        "Expected {{TEST_MESSAGE_COUNT}} messages, got {{total}}"
     );
 }
 
 #[iggy_harness(
-    server(connectors_runtime(config_path = "tests/connectors/influxdb/source.toml")),
+    server(connectors_runtime(config_path = "tests/connectors/influxdb/source.toml"),
     seed = seeds::connector_stream
 )]
 async fn influxdb_source_message_payload_structure(
@@ -93,7 +90,7 @@ async fn influxdb_source_message_payload_structure(
 ) {
     let ts: u64 = 1_700_000_100_000;
     fixture
-        .write_lines(&[&format!("sensor_readings,loc=roof humidity=78.5 {ts}")])
+        .write_lines(&[&format!("sensor_readings,loc=roof humidity=78.5 {{ts}}")])
         .await
         .expect("Failed to write line");
 
@@ -128,15 +125,15 @@ async fn influxdb_source_message_payload_structure(
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
-    assert_eq!(msgs.len(), 1, "Expected 1 message, got {}", msgs.len());
+    assert_eq!(msgs.len(), 1, "Expected 1 message, got {{}}", msgs.len());
     let m = &msgs[0];
-    assert!(m.get("measurement").is_some(), "missing 'measurement': {m}");
-    assert!(m.get("timestamp").is_some(), "missing 'timestamp': {m}");
-    assert!(m.get("value").is_some(), "missing 'value': {m}");
+    assert!(m.get("measurement").is_some(), "missing 'measurement': {{m}}");
+    assert!(m.get("timestamp").is_some(), "missing 'timestamp': {{m}}");
+    assert!(m.get("value").is_some(), "missing 'value': {{m}}");
 }
 
 #[iggy_harness(
-    server(connectors_runtime(config_path = "tests/connectors/influxdb/source.toml")),
+    server(connectors_runtime(config_path = "tests/connectors/influxdb/source.toml"),
     seed = seeds::connector_stream
 )]
 async fn influxdb_source_empty_bucket_produces_no_messages(
@@ -169,13 +166,13 @@ async fn influxdb_source_empty_bucket_produces_no_messages(
     assert_eq!(
         polled.messages.len(),
         0,
-        "Expected 0 messages for empty bucket, got {}",
+        "Expected 0 messages for empty bucket, got {{}}",
         polled.messages.len()
     );
 }
 
 #[iggy_harness(
-    server(connectors_runtime(config_path = "tests/connectors/influxdb/source.toml")),
+    server(connectors_runtime(config_path = "tests/connectors/influxdb/source.toml"),
     seed = seeds::connector_stream
 )]
 async fn influxdb_source_multiple_measurements(
@@ -185,9 +182,9 @@ async fn influxdb_source_multiple_measurements(
     let ts: u64 = 1_700_200_000_000;
     fixture
         .write_lines(&[
-            &format!("temperature,room=living v=21.5 {ts}"),
-            &format!("humidity,room=living v=55.0 {}", ts + 1000),
-            &format!("pressure,room=living v=1013.25 {}", ts + 2000),
+            &format!("temperature,room=living v=21.5 {{ts}}"),
+            &format!("humidity,room=living v=55.0 {{}}", ts + 1000),
+            &format!("pressure,room=living v=1013.25 {{}}", ts + 2000),
         ])
         .await
         .expect("Failed to write lines");
@@ -223,7 +220,7 @@ async fn influxdb_source_multiple_measurements(
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
-    assert_eq!(msgs.len(), 3, "Expected 3 messages, got {}", msgs.len());
+    assert_eq!(msgs.len(), 3, "Expected 3 messages, got {{}}", msgs.len());
 
     let measurements: Vec<&str> = msgs
         .iter()
