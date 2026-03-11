@@ -28,6 +28,7 @@ pub use elasticsearch::{ElasticsearchSinkFixture, ElasticsearchSourcePreCreatedF
 pub use iceberg::{DEFAULT_NAMESPACE, DEFAULT_TABLE, IcebergOps, IcebergPreCreatedFixture};
 pub use influxdb::InfluxDbSinkFixture;
 pub use influxdb::InfluxDbSourceFixture;
+pub use influxdb::{InfluxDbSinkFixture, InfluxDbSourceFixture};
 pub use postgres::{
     PostgresOps, PostgresSinkByteaFixture, PostgresSinkFixture, PostgresSinkJsonFixture,
     PostgresSourceByteaFixture, PostgresSourceDeleteFixture, PostgresSourceJsonFixture,
