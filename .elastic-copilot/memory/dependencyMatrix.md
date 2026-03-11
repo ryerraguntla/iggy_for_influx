@@ -1,38 +1,24 @@
 # Dependency Matrix
 
-*Generated: 2026-02-24T19:57:56.307Z*
+*Generated: 2026-03-11T06:12:21.587Z*
 
 ## Summary
 
 - Files analyzed: 1000
-- File types: js, ts, cs, rs, go, py, java, c, h
+- File types: ts, js, cs, java, kt, rs, py, go
 
 ## File Type Distribution
 
-- 3 js files
-- 209 ts files
-- 191 cs files
-- 43 rs files
-- 125 go files
+- 156 ts files
+- 1 js files
+- 224 cs files
+- 246 java files
+- 266 kt files
+- 25 rs files
 - 6 py files
-- 137 java files
-- 3 c files
-- 283 h files
+- 76 go files
 
 ## Key Dependencies by Type
-
-### JS
-
-Top dependencies:
-- eslint-config-prettier
-- node:url
-- @eslint/compat
-- @eslint/js
-- eslint-plugin-svelte
-- eslint/config
-- globals
-- typescript-eslint
-- ./svelte.config.js
 
 ### TS
 
@@ -48,19 +34,11 @@ Top dependencies:
 - node:events
 - ./client.utils.js
 
+### JS
+
+No common dependencies found
+
 ### CS
-
-No common dependencies found
-
-### RS
-
-No common dependencies found
-
-### GO
-
-No common dependencies found
-
-### PY
 
 No common dependencies found
 
@@ -68,11 +46,19 @@ No common dependencies found
 
 No common dependencies found
 
-### C
+### KT
 
 No common dependencies found
 
-### H
+### RS
+
+No common dependencies found
+
+### PY
+
+No common dependencies found
+
+### GO
 
 No common dependencies found
 

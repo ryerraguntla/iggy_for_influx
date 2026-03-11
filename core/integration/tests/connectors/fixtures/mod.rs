@@ -17,14 +17,17 @@
  * under the License.
  */
 
-mod elasticsearch;
-mod iceberg;
-mod postgres;
-mod quickwit;
-mod wiremock;
+pub mod elasticsearch;
+pub mod iceberg;
+pub mod influxdb;
+pub mod postgres;
+pub mod quickwit;
+pub mod wiremock;
 
 pub use elasticsearch::{ElasticsearchSinkFixture, ElasticsearchSourcePreCreatedFixture};
 pub use iceberg::{DEFAULT_NAMESPACE, DEFAULT_TABLE, IcebergOps, IcebergPreCreatedFixture};
+pub use influxdb::InfluxDbSinkFixture;
+pub use influxdb::InfluxDbSourceFixture;
 pub use postgres::{
     PostgresOps, PostgresSinkByteaFixture, PostgresSinkFixture, PostgresSinkJsonFixture,
     PostgresSourceByteaFixture, PostgresSourceDeleteFixture, PostgresSourceJsonFixture,
