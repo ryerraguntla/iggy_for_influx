@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+/* adding a dummy comment */
 pub mod elasticsearch;
 pub mod iceberg;
 pub mod influxdb;
@@ -26,8 +26,6 @@ pub mod wiremock;
 
 pub use elasticsearch::{ElasticsearchSinkFixture, ElasticsearchSourcePreCreatedFixture};
 pub use iceberg::{DEFAULT_NAMESPACE, DEFAULT_TABLE, IcebergOps, IcebergPreCreatedFixture};
-pub use influxdb::InfluxDbSinkFixture;
-pub use influxdb::InfluxDbSourceFixture;
 pub use influxdb::{InfluxDbSinkFixture, InfluxDbSourceFixture};
 pub use postgres::{
     PostgresOps, PostgresSinkByteaFixture, PostgresSinkFixture, PostgresSinkJsonFixture,
