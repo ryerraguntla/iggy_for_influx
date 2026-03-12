@@ -25,6 +25,8 @@ use tracing::{error, info, warn};
 
 sink_connector!(QuickwitSink);
 
+const INGEST_BATCH_SIZE: usize = 50;
+
 #[derive(Debug)]
 pub struct QuickwitSink {
     id: u32,
@@ -114,41 +116,43 @@ impl QuickwitSink {
 
     pub async fn ingest(&self, messages: Vec<simd_json::OwnedValue>) -> Result<(), Error> {
         let url = format!(
-            "{}/api/v1/{}/ingest?commit=auto",
+            "{}/api/v1/{}/ingest?commit=force",
             self.config.url, self.index_id
         );
         info!("Ingesting messages for index: {}...", self.index_id);
         let messages_count = messages.len();
-        let messages = messages
+        let serialized: Vec<String> = messages
             .into_iter()
             .filter_map(|record| simd_json::to_string(&record).ok())
-            .collect::<Vec<_>>()
-            .join("\n");
+            .collect();
 
-        let response = self
-            .client
-            .post(&url)
-            .body(messages)
-            .send()
-            .await
-            .map_err(|error| {
+        for chunk in serialized.chunks(INGEST_BATCH_SIZE) {
+            let body = chunk.join("\n");
+            let response = self
+                .client
+                .post(&url)
+                .body(body)
+                .send()
+                .await
+                .map_err(|error| {
+                    error!(
+                        "Failed to send HTTP request to ingest messages for index: {}. {error}",
+                        self.index_id
+                    );
+                    Error::HttpRequestFailed(error.to_string())
+                })?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let text = response.text().await.unwrap_or_default();
                 error!(
-                    "Failed to send HTTP request to ingest messages for index: {}. {error}",
+                    "Received an invalid HTTP response when ingesting messages for index: {}. Status code: {status}, reason: {text}",
                     self.index_id
                 );
-                Error::HttpRequestFailed(error.to_string())
-            })?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            error!(
-                "Received an invalid HTTP response when ingesting messages for index: {}. Status code: {status}, reason: {text}",
-                self.index_id
-            );
-            return Err(Error::HttpRequestFailed(format!(
-                "Status code: {status}, reason: {text}"
-            )));
+                return Err(Error::HttpRequestFailed(format!(
+                    "Status code: {status}, reason: {text}"
+                )));
+            }
         }
 
         info!(
