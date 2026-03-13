@@ -16,21 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/* adding a dummy comment */
-pub mod elasticsearch;
-pub mod iceberg;
-pub mod influxdb;
-pub mod postgres;
-pub mod quickwit;
-pub mod wiremock;
 
-pub use elasticsearch::{ElasticsearchSinkFixture, ElasticsearchSourcePreCreatedFixture};
-pub use iceberg::{DEFAULT_NAMESPACE, DEFAULT_TABLE, IcebergOps, IcebergPreCreatedFixture};
-pub use influxdb::{InfluxDbSinkFixture, InfluxDbSourceFixture};
-pub use postgres::{
-    PostgresOps, PostgresSinkByteaFixture, PostgresSinkFixture, PostgresSinkJsonFixture,
-    PostgresSourceByteaFixture, PostgresSourceDeleteFixture, PostgresSourceJsonFixture,
-    PostgresSourceJsonbFixture, PostgresSourceMarkFixture, PostgresSourceOps,
-};
-pub use quickwit::{QuickwitFixture, QuickwitOps, QuickwitPreCreatedFixture};
-pub use wiremock::{WireMockDirectFixture, WireMockWrappedFixture};
+mod influxdb_sink;
+mod influxdb_source;
+
+const TEST_MESSAGE_COUNT: usize = 3;

@@ -15,40 +15,41 @@
 # specific language governing permissions and limitations
 # under the License.
 
-type = "source"
+type = "sink"
 key = "influxdb"
 enabled = true
 version = 0
-name = "InfluxDB source"
-path = "target/release/libiggy_connector_influxdb_source"
-plugin_config_format = "toml"
+name = "InfluxDB sink (test)"
+path = "target/release/libiggy_connector_influxdb_sink"
 verbose = false
 
 [[streams]]
-stream = "events"
-topic = "influx_events"
+stream = "connector_stream"
+topics = ["connector_topic"]
 schema = "json"
-batch_length = 100
+batch_length = 10
+poll_interval = "100ms"
+consumer_group = "influxdb_sink_test"
 
 [plugin_config]
 url = "http://localhost:8086"
-org = "iggy"
-token = "replace-with-token"
-query = '''
-from(bucket: "events")
-  |> range(start: -1h)
-  |> filter(fn: (r) => r._measurement == "iggy_messages")
-  |> filter(fn: (r) => r._time > time(v: "$cursor"))
-  |> sort(columns: ["_time"])
-  |> limit(n: $limit)
-'''
-poll_interval = "5s"
-batch_size = 500
-cursor_field = "_time"
-initial_offset = "1970-01-01T00:00:00Z"
+org = "test-org"
+bucket = "test-bucket"
+token = "test-token"
+measurement = "iggy_messages"
+precision = "ms"
+batch_size = 100
 include_metadata = true
+include_checksum = false
+include_origin_timestamp = false
+include_stream_tag = true
+include_topic_tag = true
+include_partition_tag = true
 payload_format = "json"
 max_retries = 3
-retry_delay = "1s"
-timeout = "10s"
-precision = "us"
+retry_delay = "200ms"
+timeout = "5s"
+max_open_retries = 3
+open_retry_max_delay = "5s"
+circuit_breaker_threshold = 10
+circuit_breaker_cool_down = "5s"
