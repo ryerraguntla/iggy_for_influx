@@ -32,8 +32,8 @@ use tokio::time::sleep;
 use tracing::info;
 use uuid::Uuid;
 
-const DEFAULT_POLL_ATTEMPTS: usize = 300;
-const DEFAULT_POLL_INTERVAL_MS: u64 = 50;
+const DEFAULT_POLL_ATTEMPTS: usize = 1000;
+const DEFAULT_POLL_INTERVAL_MS: u64 = 100;
 
 const QUICKWIT_IMAGE: &str = "quickwit/quickwit";
 const QUICKWIT_TAG: &str = "0.8.2";
@@ -200,14 +200,12 @@ pub trait QuickwitOps: Sync {
     {
         async move {
             let search_url = format!("{}/api/v1/{}/search", self.container().base_url(), index_id);
-            let descending = "-";
 
             let response = self
                 .http_client()
                 .get(&search_url)
                 .query(&[("query", "")])
-                .query(&[("sort_by", format!("{descending}{INDEX_TIMESTAMP_FIELD}"))])
-                .query(&[("max_hits", "1000000")])
+                .query(&[("max_hits", "10000")])
                 .send()
                 .await
                 .map_err(|e| TestBinaryError::InvalidState {
@@ -247,7 +245,11 @@ pub trait QuickwitOps: Sync {
                 {
                     last_count = search.num_hits;
                     if search.num_hits >= expected_count {
-                        return Ok(search);
+                        let mut result = search;
+                        result.hits.sort_by_key(|h| {
+                            h.get("timestamp").and_then(|v| v.as_i64()).unwrap_or(0)
+                        });
+                        return Ok(result);
                     }
                 }
                 sleep(Duration::from_millis(DEFAULT_POLL_INTERVAL_MS)).await;

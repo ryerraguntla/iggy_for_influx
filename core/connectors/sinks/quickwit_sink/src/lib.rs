@@ -142,17 +142,18 @@ impl QuickwitSink {
                     Error::HttpRequestFailed(error.to_string())
                 })?;
 
-            if !response.status().is_success() {
-                let status = response.status();
-                let text = response.text().await.unwrap_or_default();
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            if !status.is_success() {
                 error!(
-                    "Received an invalid HTTP response when ingesting messages for index: {}. Status code: {status}, reason: {text}",
+                    "Received an invalid HTTP response when ingesting messages for index: {}. Status code: {status}, reason: {body}",
                     self.index_id
                 );
                 return Err(Error::HttpRequestFailed(format!(
-                    "Status code: {status}, reason: {text}"
+                    "Status code: {status}, reason: {body}"
                 )));
             }
+            info!("Batch ingest response for index {}: {body}", self.index_id);
         }
 
         info!(
