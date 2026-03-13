@@ -49,7 +49,6 @@ pub const DEFAULT_TEST_STREAM: &str = "test_stream";
 pub const DEFAULT_TEST_TOPIC: &str = "test_topic";
 #[allow(dead_code)]
 const TEST_CONSUMER_NAME: &str = "test_consumer";
-const ONE_DAY_MICROS: u64 = 24 * 60 * 60 * 1_000_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TestMessage {
@@ -85,7 +84,6 @@ struct ConnectorsIggyClient {
     topic_id: Identifier,
     client: IggyClient,
 }
-
 pub fn create_test_messages(count: usize) -> Vec<TestMessage> {
     let base_timestamp = IggyTimestamp::now().as_micros();
     (1..=count)
@@ -95,7 +93,7 @@ pub fn create_test_messages(count: usize) -> Vec<TestMessage> {
             count: ((i - 1) * 10) as u32,
             amount: (i - 1) as f64 * 99.99,
             active: (i - 1) % 2 == 0,
-            timestamp: (base_timestamp + (i - 1) as u64 * ONE_DAY_MICROS) as i64,
+            timestamp: (base_timestamp + (i - 1) as u64 * 1000) as i64,
         })
         .collect()
 }
