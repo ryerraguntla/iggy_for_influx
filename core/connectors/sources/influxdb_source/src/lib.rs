@@ -21,7 +21,7 @@ use base64::{Engine as _, engine::general_purpose};
 use csv::StringRecord;
 use httpdate::parse_http_date;
 use humantime::Duration as HumanDuration;
-use iggy_common::{DateTime, Utc};
+use iggy_common::{ChronoDuration, DateTime, Utc};
 use iggy_connector_sdk::{
     ConnectorState, Error, ProducedMessage, ProducedMessages, Schema, Source, source_connector,
 };
@@ -38,7 +38,6 @@ use std::time::SystemTime;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-
 source_connector!(InfluxDbSource);
 
 const CONNECTOR_NAME: &str = "InfluxDB source";
@@ -736,7 +735,11 @@ impl Source for InfluxDbSource {
                 state.last_poll_time = Utc::now();
                 state.processed_rows += messages.len() as u64;
                 if let Some(cursor) = max_cursor {
-                    state.last_timestamp = Some(cursor);
+                    // Advance cursor by 1 nanosecond so the next Flux filter
+                    // r._time > time(v: "$cursor") does not risk re-fetching
+                    // the boundary point due to RFC3339 string precision differences.
+                    let advanced = advance_rfc3339_by_one_ns(&cursor).unwrap_or(cursor);
+                    state.last_timestamp = Some(advanced);
                 }
 
                 if self.verbose {
@@ -797,9 +800,39 @@ impl Source for InfluxDbSource {
         Ok(())
     }
 }
-#[test]
-fn given_retry_after_http_date_in_past_should_return_zero_duration() {
-    // A date in the past should produce Duration::ZERO (not panic)
-    let result = parse_retry_after("Thu, 01 Jan 1970 00:00:00 GMT");
-    assert_eq!(result, Some(Duration::ZERO));
+
+// ---------------------------------------------------------------------------
+// Free helpers used by Source impl
+// ---------------------------------------------------------------------------
+
+/// Advance an RFC3339 timestamp string by exactly 1 nanosecond.
+/// Falls back to returning the original string if parsing fails.
+/// Example: "2026-03-14T02:30:07.000002000Z" → "2026-03-14T02:30:07.000002001Z"
+fn advance_rfc3339_by_one_ns(ts: &str) -> Option<String> {
+    let dt = ts.parse::<DateTime<Utc>>().ok()?;
+    let advanced = dt + ChronoDuration::nanoseconds(1);
+    Some(advanced.to_rfc3339())
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn given_retry_after_http_date_in_past_should_return_zero_duration() {
+        // A date in the past should produce Duration::ZERO (not panic)
+        let result = parse_retry_after("Thu, 01 Jan 1970 00:00:00 GMT");
+        assert_eq!(result, Some(Duration::ZERO));
+    }
+
+    #[test]
+    fn given_retry_after_garbage_should_return_none() {
+        assert_eq!(parse_retry_after("not-a-date"), None);
+        assert_eq!(parse_retry_after(""), None);
+        assert_eq!(parse_retry_after("soon"), None);
+    }
 }

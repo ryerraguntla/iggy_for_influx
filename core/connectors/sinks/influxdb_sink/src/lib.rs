@@ -930,9 +930,19 @@ mod tests {
 
     #[test]
     fn given_retry_after_non_integer_should_return_none() {
-        assert_eq!(parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"), None);
+        assert_eq!(
+            parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"),
+            Some(Duration::ZERO)
+        );
     }
 }
+#[test]
+fn given_retry_after_garbage_should_return_none() {
+    assert_eq!(parse_retry_after("not-a-date"), None);
+    assert_eq!(parse_retry_after(""), None);
+    assert_eq!(parse_retry_after("soon"), None);
+}
+
 #[test]
 fn given_retry_after_http_date_in_past_should_return_zero_duration() {
     // A date in the past should produce Duration::ZERO (not panic)

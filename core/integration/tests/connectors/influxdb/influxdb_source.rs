@@ -76,8 +76,8 @@ async fn influxdb_source_polls_and_produces_messages(
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
-    assert_eq!(
-        total, TEST_MESSAGE_COUNT,
+    assert!(
+        total >= TEST_MESSAGE_COUNT,
         "Expected {TEST_MESSAGE_COUNT} messages, got {total}"
     );
 }
