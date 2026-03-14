@@ -16,29 +16,10 @@
  * under the License.
  */
 
-// =============================================================================
-// CHANGES FROM ORIGINAL — all fixes are marked with [FIX-SRC-N] comments:
-//
-// [FIX-SRC-1] open() now retries connectivity with exponential backoff+jitter
-//             instead of failing hard when InfluxDB is unavailable at startup.
-// [FIX-SRC-2] run_query_with_retry() uses true exponential backoff (2^attempt)
-//             instead of linear (delay * attempt).
-// [FIX-SRC-3] Added random jitter (±20%) to every retry delay to avoid
-//             thundering herd across multiple connector instances.
-// [FIX-SRC-4] On HTTP 429 Too Many Requests, the Retry-After response header
-//             is parsed and honoured instead of using the fixed retry_delay.
-// [FIX-SRC-5] Added a circuit breaker (ConsecutiveFailureBreaker) that opens
-//             after max_retries consecutive poll failures, pausing queries for
-//             a configurable cool-down before attempting again.
-// [FIX-SRC-6] Added DEFAULT_MAX_OPEN_RETRIES / max_open_retries config field
-//             to control how many times open() retries before giving up.
-// [FIX-SRC-7] Added DEFAULT_OPEN_RETRY_MAX_DELAY cap so backoff in open()
-//             doesn't grow unboundedly.
-// =============================================================================
-
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
 use csv::StringRecord;
+use httpdate::parse_http_date;
 use humantime::Duration as HumanDuration;
 use iggy_common::{DateTime, Utc};
 use iggy_connector_sdk::{
@@ -53,6 +34,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
+use std::time::SystemTime;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -65,17 +47,17 @@ const DEFAULT_RETRY_DELAY: &str = "1s";
 const DEFAULT_POLL_INTERVAL: &str = "5s";
 const DEFAULT_TIMEOUT: &str = "10s";
 const DEFAULT_CURSOR: &str = "1970-01-01T00:00:00Z";
-// [FIX-SRC-6] Maximum attempts for open() connectivity retries
+// Maximum attempts for open() connectivity retries
 const DEFAULT_MAX_OPEN_RETRIES: u32 = 10;
-// [FIX-SRC-7] Cap for exponential backoff in open() — never wait longer than this
+// Cap for exponential backoff in open() — never wait longer than this
 const DEFAULT_OPEN_RETRY_MAX_DELAY: &str = "60s";
-// [FIX-SRC-5] How many consecutive poll failures open the circuit breaker
+// How many consecutive poll failures open the circuit breaker
 const DEFAULT_CIRCUIT_BREAKER_THRESHOLD: u32 = 5;
-// [FIX-SRC-5] How long the circuit stays open before allowing a probe attempt
+// How long the circuit stays open before allowing a probe attempt
 const DEFAULT_CIRCUIT_COOL_DOWN: &str = "30s";
 
 // ---------------------------------------------------------------------------
-// [FIX-SRC-5] Simple consecutive-failure circuit breaker
+// Simple consecutive-failure circuit breaker
 // ---------------------------------------------------------------------------
 #[derive(Debug)]
 struct CircuitBreaker {
@@ -144,7 +126,6 @@ pub struct InfluxDbSource {
     verbose: bool,
     retry_delay: Duration,
     poll_interval: Duration,
-    // [FIX-SRC-5]
     circuit_breaker: Arc<CircuitBreaker>,
 }
 
@@ -165,11 +146,11 @@ pub struct InfluxDbSourceConfig {
     pub max_retries: Option<u32>,
     pub retry_delay: Option<String>,
     pub timeout: Option<String>,
-    // [FIX-SRC-6] How many times open() will retry before giving up
+    // How many times open() will retry before giving up
     pub max_open_retries: Option<u32>,
-    // [FIX-SRC-7] Upper cap on open() backoff delay
+    // Upper cap on open() backoff delay
     pub open_retry_max_delay: Option<String>,
-    // [FIX-SRC-5] Circuit breaker configuration
+    // Circuit breaker configuration
     pub circuit_breaker_threshold: Option<u32>,
     pub circuit_breaker_cool_down: Option<String>,
 }
@@ -244,7 +225,7 @@ fn is_transient_status(status: StatusCode) -> bool {
     status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
 }
 
-// [FIX-SRC-3] Apply ±20% random jitter to a duration to spread retry storms
+// Apply ±20% random jitter to a duration to spread retry storms
 fn jitter(base: Duration) -> Duration {
     let millis = base.as_millis() as u64;
     let jitter_range = millis / 5; // 20% of base
@@ -255,21 +236,31 @@ fn jitter(base: Duration) -> Duration {
     Duration::from_millis(millis.saturating_sub(jitter_range) + delta)
 }
 
-// [FIX-SRC-2] True exponential backoff: base * 2^attempt, capped at max_delay
+// True exponential backoff: base * 2^attempt, capped at max_delay
 fn exponential_backoff(base: Duration, attempt: u32, max_delay: Duration) -> Duration {
     let factor = 2u64.saturating_pow(attempt);
     let raw = Duration::from_millis(base.as_millis().saturating_mul(factor as u128) as u64);
     raw.min(max_delay)
 }
 
-// [FIX-SRC-4] Parse Retry-After header value (integer seconds or HTTP date)
+// Parse Retry-After header value — supports both integer seconds and HTTP-date format.
+// Examples: "30"  or  "Wed, 21 Oct 2015 07:28:00 GMT"
 fn parse_retry_after(value: &str) -> Option<Duration> {
-    // First try plain integer seconds
-    if let Ok(secs) = value.trim().parse::<u64>() {
+    let trimmed = value.trim();
+
+    // Try plain integer seconds first (most common InfluxDB response)
+    if let Ok(secs) = trimmed.parse::<u64>() {
         return Some(Duration::from_secs(secs));
     }
-    // Then try HTTP-date (best-effort via httpdate crate if available,
-    // otherwise fall back to None so caller uses its own backoff)
+
+    // Try RFC 7231 HTTP-date format ("Wed, 21 Oct 2015 07:28:00 GMT")
+    if let Ok(http_date) = parse_http_date(trimmed) {
+        let wait = http_date
+            .duration_since(SystemTime::now())
+            .unwrap_or(Duration::ZERO);
+        return Some(wait);
+    }
+
     None
 }
 
@@ -283,7 +274,7 @@ impl InfluxDbSource {
         let retry_delay = parse_duration(config.retry_delay.as_deref(), DEFAULT_RETRY_DELAY);
         let poll_interval = parse_duration(config.poll_interval.as_deref(), DEFAULT_POLL_INTERVAL);
 
-        // [FIX-SRC-5] Build circuit breaker from config
+        // Build circuit breaker from config
         let cb_threshold = config
             .circuit_breaker_threshold
             .unwrap_or(DEFAULT_CIRCUIT_BREAKER_THRESHOLD);
@@ -387,7 +378,7 @@ impl InfluxDbSource {
         Ok(())
     }
 
-    // [FIX-SRC-1] Retry connectivity check with exponential backoff + jitter
+    // Retry connectivity check with exponential backoff + jitter
     // instead of failing hard on the first attempt.
     async fn check_connectivity_with_retry(&self) -> Result<(), Error> {
         let max_open_retries = self
@@ -424,7 +415,7 @@ impl InfluxDbSource {
                         );
                         return Err(e);
                     }
-                    // [FIX-SRC-2] Exponential backoff, [FIX-SRC-3] with jitter
+                    // Exponential backoff, with jitter
                     let backoff = jitter(exponential_backoff(self.retry_delay, attempt, max_delay));
                     warn!(
                         "InfluxDB health check failed (attempt {attempt}/{max_open_retries}) \
@@ -463,7 +454,7 @@ impl InfluxDbSource {
         let max_retries = self.get_max_retries();
         let token = self.config.token.clone();
 
-        // [FIX-SRC-7] Cap for per-query backoff (reuse open_retry_max_delay config)
+        // Cap for per-query backoff (reuse open_retry_max_delay config)
         let max_delay = parse_duration(
             self.config.open_retry_max_delay.as_deref(),
             DEFAULT_OPEN_RETRY_MAX_DELAY,
@@ -500,7 +491,7 @@ impl InfluxDbSource {
                         });
                     }
 
-                    // [FIX-SRC-4] Honour Retry-After on 429 before our own backoff
+                    // Honour Retry-After on 429 before our own backoff
                     let retry_after = if status == StatusCode::TOO_MANY_REQUESTS {
                         response
                             .headers()
@@ -518,9 +509,9 @@ impl InfluxDbSource {
 
                     attempts += 1;
                     if is_transient_status(status) && attempts < max_retries {
-                        // [FIX-SRC-4] Use server-supplied delay when available
+                        // Use server-supplied delay when available
                         let delay = retry_after.unwrap_or_else(|| {
-                            // [FIX-SRC-2] Exponential, [FIX-SRC-3] with jitter
+                            // Exponential, with jitter
                             jitter(exponential_backoff(self.retry_delay, attempts, max_delay))
                         });
                         warn!(
@@ -538,7 +529,7 @@ impl InfluxDbSource {
                 Err(e) => {
                     attempts += 1;
                     if attempts < max_retries {
-                        // [FIX-SRC-2] Exponential, [FIX-SRC-3] with jitter
+                        // Exponential, with jitter
                         let delay =
                             jitter(exponential_backoff(self.retry_delay, attempts, max_delay));
                         warn!(
@@ -712,7 +703,7 @@ impl Source for InfluxDbSource {
 
         self.client = Some(self.build_client()?);
 
-        // [FIX-SRC-1] Use retrying connectivity check instead of hard-fail
+        // Use retrying connectivity check instead of hard-fail
         self.check_connectivity_with_retry().await?;
 
         info!(
@@ -723,7 +714,7 @@ impl Source for InfluxDbSource {
     }
 
     async fn poll(&self) -> Result<ProducedMessages, Error> {
-        // [FIX-SRC-5] Skip query if circuit breaker is open
+        // Skip query if circuit breaker is open
         if self.circuit_breaker.is_open().await {
             warn!(
                 "InfluxDB source ID: {} — circuit breaker is OPEN. Skipping poll.",
@@ -738,7 +729,7 @@ impl Source for InfluxDbSource {
 
         match self.poll_messages().await {
             Ok((messages, max_cursor)) => {
-                // [FIX-SRC-5] Successful poll — reset circuit breaker
+                // Successful poll — reset circuit breaker
                 self.circuit_breaker.record_success();
 
                 let mut state = self.state.lock().await;
@@ -783,7 +774,7 @@ impl Source for InfluxDbSource {
                 })
             }
             Err(e) => {
-                // [FIX-SRC-5] Failed poll — notify circuit breaker
+                // Failed poll — notify circuit breaker
                 self.circuit_breaker.record_failure().await;
                 error!(
                     "InfluxDB source ID: {} poll failed: {e}. \
@@ -797,6 +788,7 @@ impl Source for InfluxDbSource {
     }
 
     async fn close(&mut self) -> Result<(), Error> {
+        self.client = None; // drop reqwest Client, releasing connection pool
         let state = self.state.lock().await;
         info!(
             "InfluxDB source connector ID: {} closed. Total rows processed: {}",
@@ -804,4 +796,10 @@ impl Source for InfluxDbSource {
         );
         Ok(())
     }
+}
+#[test]
+fn given_retry_after_http_date_in_past_should_return_zero_duration() {
+    // A date in the past should produce Duration::ZERO (not panic)
+    let result = parse_retry_after("Thu, 01 Jan 1970 00:00:00 GMT");
+    assert_eq!(result, Some(Duration::ZERO));
 }

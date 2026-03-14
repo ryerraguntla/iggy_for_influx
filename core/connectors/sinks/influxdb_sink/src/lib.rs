@@ -18,6 +18,7 @@
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
+use httpdate::parse_http_date;
 use humantime::Duration as HumanDuration;
 use iggy_connector_sdk::{
     ConsumedMessage, Error, MessagesMetadata, Sink, TopicMetadata, sink_connector,
@@ -207,12 +208,24 @@ fn exponential_backoff(base: Duration, attempt: u32, max_delay: Duration) -> Dur
     raw.min(max_delay)
 }
 
-// Parse Retry-After header value (integer seconds or HTTP date)
+// Parse Retry-After header value — supports both integer seconds and HTTP-date format.
+// Examples: "30"  or  "Wed, 21 Oct 2015 07:28:00 GMT"
 fn parse_retry_after(value: &str) -> Option<Duration> {
-    if let Ok(secs) = value.trim().parse::<u64>() {
+    let trimmed = value.trim();
+
+    // Try plain integer seconds first (most common InfluxDB response)
+    if let Ok(secs) = trimmed.parse::<u64>() {
         return Some(Duration::from_secs(secs));
     }
-    // HTTP-date fallback would require httpdate crate; return None to use own backoff
+
+    // Try RFC 7231 HTTP-date format ("Wed, 21 Oct 2015 07:28:00 GMT")
+    if let Ok(http_date) = parse_http_date(trimmed) {
+        let wait = http_date
+            .duration_since(SystemTime::now())
+            .unwrap_or(Duration::ZERO);
+        return Some(wait);
+    }
+
     None
 }
 
@@ -919,4 +932,10 @@ mod tests {
     fn given_retry_after_non_integer_should_return_none() {
         assert_eq!(parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"), None);
     }
+}
+#[test]
+fn given_retry_after_http_date_in_past_should_return_zero_duration() {
+    // A date in the past should produce Duration::ZERO (not panic)
+    let result = parse_retry_after("Thu, 01 Jan 1970 00:00:00 GMT");
+    assert_eq!(result, Some(Duration::ZERO));
 }

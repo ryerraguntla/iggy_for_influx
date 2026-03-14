@@ -40,6 +40,7 @@ base64 = { workspace = true }
 csv = { workspace = true }
 dashmap = { workspace = true }
 futures = { workspace = true }
+httpdate = "1.0"
 humantime = { workspace = true }
 iggy_common = { workspace = true }
 #iggy_connector_influxdb_sink = { version = "0.2.2-edge.1", path = "../../sinks/influxdb_sink" }
